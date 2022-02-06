@@ -46,7 +46,11 @@ class ClockReplacer : public Replacer {
   size_t Size() override;
 
  private:
-  // TODO(student): implement me!
+  std::vector<bool> ref_;
+
+  std::vector<bool> pinned_;
+
+  size_t cur_pos_, size_;
 };
 
 }  // namespace bustub
