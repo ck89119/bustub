@@ -35,6 +35,7 @@ bool ClockReplacer::Victim(frame_id_t *frame_id) {
 
     if (!ref_[cur_pos_]) {
       *frame_id = cur_pos_;
+      Pin(*frame_id);
       cur_pos_ = (cur_pos_ + 1) % ref_.size();
       break;
     }
@@ -49,7 +50,6 @@ void ClockReplacer::Pin(frame_id_t frame_id) {
     pinned_[frame_id] = true;
     --size_;
   }
-  ref_[frame_id] = true;
 }
 
 void ClockReplacer::Unpin(frame_id_t frame_id) {
@@ -57,6 +57,7 @@ void ClockReplacer::Unpin(frame_id_t frame_id) {
     pinned_[frame_id] = false;
     ++size_;
   }
+  ref_[frame_id] = true;
 }
 
 size_t ClockReplacer::Size() { 
