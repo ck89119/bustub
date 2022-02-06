@@ -145,8 +145,8 @@ class RowMatrix : public Matrix<T> {
    * @throws OUT_OF_RANGE if either index is out of range
    */
   T GetElement(int i, int j) const override {
-    // LOG_INFO("GetElement, i = %d, j = %d", i, j);
     if (!CheckIndex(i, j)) {
+      LOG_INFO("GetElement, i = %d, j = %d", i, j);
       throw Exception(ExceptionType::OUT_OF_RANGE, "RowMatrix::GetElement(), index out of range");
     }
     return *(data_[i] + j);
@@ -163,8 +163,8 @@ class RowMatrix : public Matrix<T> {
    * @throws OUT_OF_RANGE if either index is out of range
    */
   void SetElement(int i, int j, T val) override {
-    // LOG_INFO("SetElement, i = %d, j = %d, val = %d", i, j, val);
     if (!CheckIndex(i, j)) {
+      LOG_INFO("SetElement, i = %d, j = %d, val = %d", i, j, val);
       throw Exception(ExceptionType::OUT_OF_RANGE, "RowMatrix::SetElement(), index out of range");
     }
     *(data_[i] + j) = val;
@@ -182,15 +182,16 @@ class RowMatrix : public Matrix<T> {
    * @throws OUT_OF_RANGE if `source` is incorrect size
    */
   void FillFrom(const std::vector<T> &source) override {
-    // LOG_INFO("rows_ = %d, cols_ = %d", this->rows_, this->cols_);
     if (this->rows_ * this->cols_ != static_cast<int>(source.size())) {
+      LOG_INFO("rows_ = %d, cols_ = %d, source.size() = %d", this->rows_, this->cols_, static_cast<int>(source.size()));
       throw Exception(ExceptionType::OUT_OF_RANGE, "RowMatrix::FillFrom(), index out of range");
     }
     // TODO(caokai): memcpy
-    for (int i = 0; i < this->rows_; i++)
+    for (int i = 0; i < this->rows_; i++) {
       for (int j = 0; j < this->cols_; j++) {
         SetElement(i, j, source[i * this->cols_ + j]);
       }
+    }
   }
 
   /**
@@ -241,12 +242,13 @@ class RowMatrixOperations {
       return std::unique_ptr<RowMatrix<T>>(nullptr);
     }
 
-    RowMatrix<T> *matrixC = new RowMatrix<T>(r0, c0);
-    for (int i = 0; i < r0; ++i)
+    RowMatrix<T> *matrix_c = new RowMatrix<T>(r0, c0);
+    for (int i = 0; i < r0; ++i) {
       for (int j = 0; j < c0; ++j) {
-        matrixC->SetElement(i, j, matrixA->GetElement(i, j) + matrixB->GetElement(i, j));
+        matrix_c->SetElement(i, j, matrixA->GetElement(i, j) + matrixB->GetElement(i, j));
       }
-    return std::unique_ptr<RowMatrix<T>>(matrixC);
+    }
+    return std::unique_ptr<RowMatrix<T>>(matrix_c);
   }
 
   /**
@@ -269,14 +271,17 @@ class RowMatrixOperations {
       return std::unique_ptr<RowMatrix<T>>(nullptr);
     }
 
-    RowMatrix<T> *matrixC = new RowMatrix<T>(r0, c1);
-    for (int i = 0; i < r0; ++i)
+    RowMatrix<T> *matrix_c = new RowMatrix<T>(r0, c1);
+    for (int i = 0; i < r0; ++i) {
       for (int j = 0; j < c1; ++j) {
         T sum = 0;
-        for (int k = 0; k < c0; ++k) sum += matrixA->GetElement(i, k) * matrixB->GetElement(k, j);
-        matrixC->SetElement(i, j, sum);
+        for (int k = 0; k < c0; ++k) {
+          sum += matrixA->GetElement(i, k) * matrixB->GetElement(k, j);
+        }
+        matrix_c->SetElement(i, j, sum);
       }
-    return std::unique_ptr<RowMatrix<T>>(matrixC);
+    }
+    return std::unique_ptr<RowMatrix<T>>(matrix_c);
   }
 
   /**
