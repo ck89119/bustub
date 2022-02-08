@@ -12,6 +12,7 @@
 
 #include "buffer/lru_replacer.h"
 
+#include "common/logger.h"
 namespace bustub {
 
 LRUReplacer::LRUReplacer(size_t num_pages) {}
@@ -32,13 +33,15 @@ bool LRUReplacer::Victim(frame_id_t *frame_id) {
 void LRUReplacer::Pin(frame_id_t frame_id) {
   if (table_.find(frame_id) != table_.end()) {
     auto it = table_[frame_id];
-    table_.erase(frame_id);
     list_.erase(it);
+    table_.erase(frame_id);
   }
 }
 
 void LRUReplacer::Unpin(frame_id_t frame_id) {
+  LOG_INFO("LRUReplacer::Unpin, frame_id = %d", frame_id);
   if (table_.find(frame_id) == table_.end()) {
+    LOG_INFO("LRUReplacer::Unpin, frame_id = %d not in table", frame_id);
     list_.push_back(frame_id);
     table_[frame_id] = --list_.end();
   }

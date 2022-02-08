@@ -72,6 +72,8 @@ Page *BufferPoolManagerInstance::NewPgImp(page_id_t *page_id) {
   // 3.   Update P's metadata, zero out memory and add P to the page table.
   // 4.   Set the page ID output parameter. Return a pointer to P.
 
+  LOG_INFO("free_list_.size() = %lu", free_list_.size());
+  LOG_INFO("replacer_->Size() = %lu", replacer_->Size());
   if (free_list_.empty() && replacer_->Size() == 0) {
     return nullptr;
   }
@@ -98,6 +100,7 @@ Page *BufferPoolManagerInstance::FetchPgImp(page_id_t page_id) {
 
   // if page in pages
   if (page_table_.find(page_id) != page_table_.end()) {
+    LOG_INFO("page_id: %d in page_table_", page_id);
     frame_id_t frame_id = page_table_[page_id];
     Page* page = pages_ + frame_id;
     page->pin_count_ += 1;
@@ -142,6 +145,7 @@ bool BufferPoolManagerInstance::DeletePgImp(page_id_t page_id) {
   DeallocatePage(page_id);
   page->ResetMemory();
   page_table_.erase(page_id);
+  free_list_.push_back(frame_id);
   return true;
 }
 
@@ -174,6 +178,7 @@ void BufferPoolManagerInstance::ValidatePageId(const page_id_t page_id) const {
 frame_id_t BufferPoolManagerInstance::AvailableFrame() {
   frame_id_t frame_id = -1;
   // if no free node, get one from replacer
+  LOG_INFO("free_list_.size() = %lu", free_list_.size());
   if (free_list_.empty()) {
     if (replacer_->Size() == 0) {
       return frame_id;
