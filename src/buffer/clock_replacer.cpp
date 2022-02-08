@@ -28,7 +28,7 @@ bool ClockReplacer::Victim(frame_id_t *frame_id) {
     return false;
   }
 
-  for (; ; cur_pos_ = (cur_pos_ + 1) % ref_.size()) {
+  for (;; cur_pos_ = (cur_pos_ + 1) % ref_.size()) {
     if (pinned_[cur_pos_]) {
       continue;
     }
@@ -60,8 +60,6 @@ void ClockReplacer::Unpin(frame_id_t frame_id) {
   ref_[frame_id] = true;
 }
 
-size_t ClockReplacer::Size() { 
-  return size_;
-}
+size_t ClockReplacer::Size() { return size_; }
 
 }  // namespace bustub

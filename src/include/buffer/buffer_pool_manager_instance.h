@@ -121,6 +121,12 @@ class BufferPoolManagerInstance : public BufferPoolManager {
    */
   void ValidatePageId(page_id_t page_id) const;
 
+  /**
+   * Find a frame from free_list_ if not empty, otherwise from replacer_
+   * @return frame_id_t
+   */
+  frame_id_t AvailableFrame();
+
   /** Number of pages in the buffer pool. */
   const size_t pool_size_;
   /** How many instances are in the parallel BPM (if present, otherwise just 1 BPI) */
