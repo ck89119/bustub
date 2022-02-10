@@ -51,7 +51,7 @@ class LRUReplacer : public Replacer {
 
   std::unordered_map<frame_id_t, std::list<int>::iterator> table_;
 
-  std::mutex mutex;
+  std::mutex mutex_;
 };
 
 }  // namespace bustub

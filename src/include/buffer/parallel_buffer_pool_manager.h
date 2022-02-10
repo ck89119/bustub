@@ -13,6 +13,7 @@
 #pragma once
 
 #include <unordered_map>
+#include <vector>
 
 #include "buffer/buffer_pool_manager.h"
 #include "recovery/log_manager.h"
@@ -90,9 +91,9 @@ class ParallelBufferPoolManager : public BufferPoolManager {
   void FlushAllPgsImp() override;
 
  private:
-  std::vector<BufferPoolManager*> bpms_ = std::vector<BufferPoolManager*>();
+  std::vector<BufferPoolManager *> bpms_ = std::vector<BufferPoolManager *>();
 
-  uint32_t cur_index = 0;
+  uint32_t cur_index_ = 0;
 
   std::unordered_map<page_id_t, uint32_t> page_instance_map_;
 };

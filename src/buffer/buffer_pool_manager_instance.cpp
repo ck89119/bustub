@@ -106,7 +106,7 @@ Page *BufferPoolManagerInstance::FetchPgImp(page_id_t page_id) {
   if (page_table_.find(page_id) != page_table_.end()) {
     LOG_INFO("page_id: %d in page_table_", page_id);
     frame_id_t frame_id = page_table_[page_id];
-    Page* page = pages_ + frame_id;
+    Page *page = pages_ + frame_id;
     page->pin_count_ += 1;
     replacer_->Pin(frame_id);
     return page;

@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "buffer/buffer_pool_manager_instance.h"
 #include "buffer/parallel_buffer_pool_manager.h"
+#include "buffer/buffer_pool_manager_instance.h"
 
 #include "common/logger.h"
 
@@ -66,18 +66,18 @@ Page *ParallelBufferPoolManager::NewPgImp(page_id_t *page_id) {
   // 2.   Bump the starting index (mod number of instances) to start search at a different BPMI each time this function
   // is called
 
-  auto old_index = cur_index;
+  auto old_index = cur_index_;
   do {
-    LOG_INFO("cur_index = %d", cur_index);
-    Page* page = bpms_[cur_index]->NewPage(page_id);
+    LOG_INFO("cur_index = %d", cur_index_);
+    Page *page = bpms_[cur_index_]->NewPage(page_id);
     if (page != nullptr) {
-      page_instance_map_[*page_id] = cur_index;
-      cur_index = (cur_index + 1) % bpms_.size(); 
+      page_instance_map_[*page_id] = cur_index_;
+      cur_index_ = (cur_index_ + 1) % bpms_.size();
       return page;
     }
 
-    cur_index = (cur_index + 1) % bpms_.size();
-  } while (cur_index != old_index);
+    cur_index_ = (cur_index_ + 1) % bpms_.size();
+  } while (cur_index_ != old_index);
   return nullptr;
 }
 
