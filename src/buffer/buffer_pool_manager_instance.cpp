@@ -57,7 +57,10 @@ bool BufferPoolManagerInstance::FlushPgImp(page_id_t page_id) {
 
   frame_id_t frame_id = page_table_[page_id];
   Page *page = pages_ + frame_id;
-  disk_manager_->WritePage(page_id, page->GetData());
+  if (page->is_dirty_) {
+    disk_manager_->WritePage(page_id, page->data_);
+    page->is_dirty_ = false;
+  }
   return true;
 }
 
@@ -84,11 +87,13 @@ Page *BufferPoolManagerInstance::NewPgImp(page_id_t *page_id) {
   *page_id = AllocatePage();
   frame_id_t frame_id = AvailableFrame();
   Page *page = pages_ + frame_id;
-  page->pin_count_ += 1;
+  page->ResetMemory();
   page->page_id_ = *page_id;
-  replacer_->Pin(frame_id);
+  page->pin_count_ = 1;
+  page->is_dirty_ = false;
   // update page_table
   page_table_[*page_id] = frame_id;
+  replacer_->Pin(frame_id);
   return page;
 }
 
@@ -120,12 +125,17 @@ Page *BufferPoolManagerInstance::FetchPgImp(page_id_t page_id) {
 
   // get page
   Page *page = pages_ + frame_id;
-  // set new page_id
-  page->page_id_ = page_id;
   // read from disk
   disk_manager_->ReadPage(page_id, page->GetData());
+  // set new page_id
+  page->page_id_ = page_id;
+  // inc pin count
+  page->pin_count_ = 1;
+  // not dirty
+  page->is_dirty_ = false;
   // update page_table
   page_table_[page_id] = frame_id;
+  replacer_->Pin(frame_id);
   return page;
 }
 
@@ -138,6 +148,7 @@ bool BufferPoolManagerInstance::DeletePgImp(page_id_t page_id) {
   std::unique_lock lock(latch_);
 
   if (page_table_.find(page_id) == page_table_.end()) {
+    DeallocatePage(page_id);
     return true;
   }
 
@@ -148,8 +159,10 @@ bool BufferPoolManagerInstance::DeletePgImp(page_id_t page_id) {
   }
 
   DeallocatePage(page_id);
-  page->is_dirty_ = false;
-  page->ResetMemory();
+  // page->ResetMemory();
+  // page->page_id_ = INVALID_PAGE_ID;
+  // page->pin_count_ = 0;
+  // page->is_dirty_ = false;
   page_table_.erase(page_id);
   free_list_.push_back(frame_id);
   return true;
@@ -158,14 +171,19 @@ bool BufferPoolManagerInstance::DeletePgImp(page_id_t page_id) {
 bool BufferPoolManagerInstance::UnpinPgImp(page_id_t page_id, bool is_dirty) {
   std::unique_lock lock(latch_);
 
+  // deleted already
+  if (page_table_.find(page_id) == page_table_.end()) {
+    return true;
+  }
+
   frame_id_t frame_id = page_table_[page_id];
   Page *page = pages_ + frame_id;
-  page->is_dirty_ = is_dirty;
+  page->is_dirty_ |= is_dirty;
   if (page->pin_count_ > 0) {
     page->pin_count_ -= 1;
   }
 
-  LOG_INFO("pin_count = %d", page->pin_count_);
+  // LOG_INFO("pin_count = %d", page->pin_count_);
   if (page->pin_count_ == 0) {
     replacer_->Unpin(frame_id);
   }
@@ -173,8 +191,6 @@ bool BufferPoolManagerInstance::UnpinPgImp(page_id_t page_id, bool is_dirty) {
 }
 
 page_id_t BufferPoolManagerInstance::AllocatePage() {
-  // std::unique_lock lock(latch_);
-
   const page_id_t next_page_id = next_page_id_;
   next_page_id_ += num_instances_;
   ValidatePageId(next_page_id);
@@ -196,11 +212,10 @@ frame_id_t BufferPoolManagerInstance::AvailableFrame() {
 
     replacer_->Victim(&frame_id);
     Page *page = pages_ + frame_id;
-    if (page->IsDirty()) {
+    if (page->is_dirty_) {
       disk_manager_->WritePage(page->page_id_, page->data_);
       page->is_dirty_ = false;
     }
-    page->ResetMemory();
     page_table_.erase(page->page_id_);
   } else {
     frame_id = free_list_.front();
