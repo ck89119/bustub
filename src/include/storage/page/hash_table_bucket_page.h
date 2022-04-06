@@ -138,6 +138,16 @@ class HashTableBucketPage {
   void PrintBucket();
 
  private:
+  std::pair<uint32_t, uint32_t> GetBitLocation(uint32_t bucket_idx) const;
+
+  bool GetBit(uint32_t bucket_idx, char* arr) const;
+
+  void SetZero(uint32_t bucket_idx, char* arr);
+
+  void SetOne(uint32_t bucket_idx, char* arr);
+
+  std::tuple<uint32_t, uint32_t, uint32_t> GetStatistics() const;
+
   //  For more on BUCKET_ARRAY_SIZE see storage/page/hash_table_page_defs.h
   char occupied_[(BUCKET_ARRAY_SIZE - 1) / 8 + 1];
   // 0 if tombstone/brand new (never occupied), 1 otherwise.
