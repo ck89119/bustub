@@ -23,7 +23,7 @@ ParallelBufferPoolManager::ParallelBufferPoolManager(size_t num_instances, size_
   for (size_t i = 0; i < num_instances; ++i) {
     bpms_.push_back(new BufferPoolManagerInstance(pool_size, num_instances, i, disk_manager, log_manager));
   }
-  LOG_INFO("bpms_.size() = %lu", bpms_.size());
+  // LOG_INFO("bpms_.size() = %lu", bpms_.size());
 }
 
 // Update constructor to destruct all BufferPoolManagerInstances and deallocate any associated memory
@@ -35,12 +35,12 @@ ParallelBufferPoolManager::~ParallelBufferPoolManager() {
 
 size_t ParallelBufferPoolManager::GetPoolSize() {
   // Get size of all BufferPoolManagerInstances
-  return bpms_.size();
+  return bpms_.size() * bpms_[0]->GetPoolSize();
 }
 
 BufferPoolManager *ParallelBufferPoolManager::GetBufferPoolManager(page_id_t page_id) {
   // Get BufferPoolManager responsible for handling given page id. You can use this method in your other methods.
-  return bpms_[page_instance_map_[page_id]];
+  return bpms_[page_id % bpms_.size()];
 }
 
 Page *ParallelBufferPoolManager::FetchPgImp(page_id_t page_id) {
@@ -66,25 +66,24 @@ Page *ParallelBufferPoolManager::NewPgImp(page_id_t *page_id) {
   // 2.   Bump the starting index (mod number of instances) to start search at a different BPMI each time this function
   // is called
 
-  auto old_index = cur_index_;
-  do {
-    LOG_INFO("cur_index = %d", cur_index_);
-    Page *page = bpms_[cur_index_]->NewPage(page_id);
-    if (page != nullptr) {
-      page_instance_map_[*page_id] = cur_index_;
-      cur_index_ = (cur_index_ + 1) % bpms_.size();
-      return page;
-    }
+  mutex_.lock();
+  uint32_t old_index = cur_index_;
+  cur_index_ = (cur_index_ + 1) % bpms_.size();
+  mutex_.unlock();
 
-    cur_index_ = (cur_index_ + 1) % bpms_.size();
-  } while (cur_index_ != old_index);
-  return nullptr;
+  Page *page = nullptr;
+  for (uint32_t i = old_index; i != old_index + bpms_.size(); ++i) {
+    page = bpms_[i % bpms_.size()]->NewPage(page_id);
+    if (page != nullptr) {
+      break;
+    }
+  }
+  return page;
 }
 
 bool ParallelBufferPoolManager::DeletePgImp(page_id_t page_id) {
   // Delete page_id from responsible BufferPoolManagerInstance
-  GetBufferPoolManager(page_id)->DeletePage(page_id);
-  return false;
+  return GetBufferPoolManager(page_id)->DeletePage(page_id);
 }
 
 void ParallelBufferPoolManager::FlushAllPgsImp() {

@@ -95,6 +95,6 @@ class ParallelBufferPoolManager : public BufferPoolManager {
 
   uint32_t cur_index_ = 0;
 
-  std::unordered_map<page_id_t, uint32_t> page_instance_map_;
+  std::mutex mutex_;
 };
 }  // namespace bustub
