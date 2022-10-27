@@ -140,11 +140,11 @@ class HashTableBucketPage {
  private:
   std::pair<uint32_t, uint32_t> GetBitLocation(uint32_t bucket_idx) const;
 
-  bool GetBit(uint32_t bucket_idx, char* arr) const;
+  bool GetBit(uint32_t bucket_idx, char *arr) const;
 
-  void SetZero(uint32_t bucket_idx, char* arr);
+  void SetZero(uint32_t bucket_idx, char *arr);
 
-  void SetOne(uint32_t bucket_idx, char* arr);
+  void SetOne(uint32_t bucket_idx, char *arr);
 
   std::tuple<uint32_t, uint32_t, uint32_t> GetStatistics() const;
 
