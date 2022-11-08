@@ -34,7 +34,7 @@ bool HASH_TABLE_BUCKET_TYPE::GetValue(KeyType key, KeyComparator cmp, std::vecto
       result->push_back(ValueAt(i));
     }
   }
-  return result->size() > 0;
+  return !result->empty();
 }
 
 template <typename KeyType, typename ValueType, typename KeyComparator>
@@ -131,8 +131,7 @@ bool HASH_TABLE_BUCKET_TYPE::IsFull() {
 
 template <typename KeyType, typename ValueType, typename KeyComparator>
 uint32_t HASH_TABLE_BUCKET_TYPE::NumReadable() {
-  auto [_, taken, __] = GetStatistics();
-  return taken;
+  return std::get<1>(GetStatistics());
 }
 
 template <typename KeyType, typename ValueType, typename KeyComparator>
@@ -154,7 +153,7 @@ std::pair<uint32_t, uint32_t> HASH_TABLE_BUCKET_TYPE::GetBitLocation(uint32_t bu
 }
 
 template <typename KeyType, typename ValueType, typename KeyComparator>
-bool HASH_TABLE_BUCKET_TYPE::GetBit(uint32_t bucket_idx, char *arr) const {
+bool HASH_TABLE_BUCKET_TYPE::GetBit(uint32_t bucket_idx, const char *arr) const {
   auto [index, bit_offset] = GetBitLocation(bucket_idx);
   return (arr[index] >> bit_offset) & 1;
 }
@@ -162,13 +161,13 @@ bool HASH_TABLE_BUCKET_TYPE::GetBit(uint32_t bucket_idx, char *arr) const {
 template <typename KeyType, typename ValueType, typename KeyComparator>
 void HASH_TABLE_BUCKET_TYPE::SetZero(uint32_t bucket_idx, char *arr) {
   auto [index, bit_offset] = GetBitLocation(bucket_idx);
-  arr[index] &= (0xff - (1 << bit_offset));
+  *(arr + index) &= (0xff - (1 << bit_offset));
 }
 
 template <typename KeyType, typename ValueType, typename KeyComparator>
 void HASH_TABLE_BUCKET_TYPE::SetOne(uint32_t bucket_idx, char *arr) {
   auto [index, bit_offset] = GetBitLocation(bucket_idx);
-  arr[index] |= (1 << bit_offset);
+  *(arr + index) |= (1 << bit_offset);
 }
 
 template <typename KeyType, typename ValueType, typename KeyComparator>

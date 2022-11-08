@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -140,7 +141,7 @@ class HashTableBucketPage {
  private:
   std::pair<uint32_t, uint32_t> GetBitLocation(uint32_t bucket_idx) const;
 
-  bool GetBit(uint32_t bucket_idx, char *arr) const;
+  bool GetBit(uint32_t bucket_idx, const char *arr) const;
 
   void SetZero(uint32_t bucket_idx, char *arr);
 

@@ -116,7 +116,7 @@ std::string TimestampType::ToString(const Value &val) const {
   auto month = static_cast<uint16_t>(tm);
   char str[30];
   char zone[5];
-  sprintf(str, "%04d-%02d-%02d %02d:%02d:%02d.%06d", year, month, day, hour, min, sec, micro);  // NOLINT
+  snprintf(str, 30, "%04d-%02d-%02d %02d:%02d:%02d.%06d", year, month, day, hour, min, sec, micro);  // NOLINT
   if (tz >= 0) {
     str[26] = '+';
   } else {
@@ -125,7 +125,7 @@ std::string TimestampType::ToString(const Value &val) const {
   if (tz < 0) {
     tz = -tz;
   }
-  sprintf(zone, "%02d", tz);  // NOLINT
+  snprintf(zone, 5, "%02d", tz);  // NOLINT
   str[27] = 0;
   return std::string(std::string(str) + std::string(zone));
 }
