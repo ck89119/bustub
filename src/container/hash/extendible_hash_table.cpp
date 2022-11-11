@@ -124,7 +124,7 @@ bool HASH_TABLE_TYPE::Insert(Transaction *transaction, const KeyType &key, const
   bool status = bucket_page->Insert(key, value, comparator_);
   page->WUnlatch();
 
-  buffer_pool_manager_->UnpinPage(bucket_page_id, true, nullptr);
+  buffer_pool_manager_->UnpinPage(bucket_page_id, status, nullptr);
   table_latch_.RUnlock();
   return status;
 }
@@ -134,75 +134,77 @@ bool HASH_TABLE_TYPE::SplitInsert(Transaction *transaction, const KeyType &key, 
   table_latch_.WLock();
 
   HashTableDirectoryPage *dir_page = FetchDirectoryPage();
-  uint32_t bucket_idx = KeyToDirectoryIndex(key, dir_page);
-  page_id_t bucket_page_id = KeyToPageId(key, dir_page);
-  HASH_TABLE_BUCKET_TYPE *bucket_page = FetchBucketPage(bucket_page_id);
+  bool dir_dirty = false;
+  while (true) {
+    uint32_t bucket_idx = KeyToDirectoryIndex(key, dir_page);
+    page_id_t bucket_page_id = KeyToPageId(key, dir_page);
+    HASH_TABLE_BUCKET_TYPE *bucket_page = FetchBucketPage(bucket_page_id);
 
-  // if bucket is not full, insert directly
-  if (!bucket_page->IsFull()) {
-    bool status = bucket_page->Insert(key, value, comparator_);
+    // if bucket is not full, insert directly
+    if (!bucket_page->IsFull()) {
+      bool status = bucket_page->Insert(key, value, comparator_);
 
-    buffer_pool_manager_->UnpinPage(directory_page_id_, false, nullptr);
+      buffer_pool_manager_->UnpinPage(directory_page_id_, dir_dirty, nullptr);
+      buffer_pool_manager_->UnpinPage(bucket_page_id, status, nullptr);
+      table_latch_.WUnlock();
+      return status;
+    }
+
+    // if bucket is full
+    // if no split image, need to double size dir array first
+    if (dir_page->GetGlobalDepth() == dir_page->GetLocalDepth(bucket_idx)) {
+      // init split images
+      for (uint32_t i = 0; i < dir_page->Size(); ++i) {
+        dir_page->SetBucketPageId(i + dir_page->Size(), dir_page->GetBucketPageId(i));
+        dir_page->SetLocalDepth(i + dir_page->Size(), dir_page->GetLocalDepth(i));
+      }
+      dir_page->IncrGlobalDepth();
+    }
+
+    // current bucket is full, move some element to split image
+    // new page
+    page_id_t split_image_page_id;
+    HASH_TABLE_BUCKET_TYPE *split_image_page =
+        reinterpret_cast<HASH_TABLE_BUCKET_TYPE *>(buffer_pool_manager_->NewPage(&split_image_page_id));
+    assert(split_image_page != nullptr);
+
+    // change meta info point to bucket_page previously
+    uint32_t idx = bucket_idx;
+    uint32_t inc = dir_page->GetLocalHighBit(bucket_idx);
+    // uint32_t old_local_depth = dir_page->GetLocalDepth(bucket_idx);
+    do {
+      // assert(dir_page->GetLocalDepth(idx) == old_local_depth);
+
+      // update local depth
+      dir_page->IncrLocalDepth(idx);
+      idx = (idx + inc) % dir_page->Size();
+    } while (idx != bucket_idx);
+
+    inc = dir_page->GetLocalHighBit(bucket_idx);
+    do {
+      // assert(dir_page->GetBucketPageId(idx) == bucket_page_id);
+
+      // update bucket page id
+      dir_page->SetBucketPageId(idx, split_image_page_id);
+      idx = (idx + inc) % dir_page->Size();
+    } while (idx != bucket_idx);
+
+    // move key/value to new split page
+    uint32_t local_mask = dir_page->GetLocalDepthMask(bucket_idx);
+    uint32_t new_bucket_idx = bucket_idx & local_mask;
+    for (uint32_t i = 0; i < BUCKET_ARRAY_SIZE; ++i) {
+      uint32_t new_idx = Hash(bucket_page->KeyAt(i)) & local_mask;
+      if (new_idx == new_bucket_idx) {
+        split_image_page->Insert(bucket_page->KeyAt(i), bucket_page->ValueAt(i), comparator_);
+        bucket_page->RemoveAt(i);
+      }
+    }
+
+    dir_dirty = true;
     buffer_pool_manager_->UnpinPage(bucket_page_id, true, nullptr);
-    table_latch_.WUnlock();
-    return status;
+    buffer_pool_manager_->UnpinPage(split_image_page_id, true, nullptr);
   }
-
-  // if bucket is full
-  // if no split image, need to double size dir array first
-  if (dir_page->GetGlobalDepth() == dir_page->GetLocalDepth(bucket_idx)) {
-    // init split images
-    for (uint32_t i = 0; i < dir_page->Size(); ++i) {
-      dir_page->SetBucketPageId(i + dir_page->Size(), dir_page->GetBucketPageId(i));
-      dir_page->SetLocalDepth(i + dir_page->Size(), dir_page->GetLocalDepth(i));
-    }
-    dir_page->IncrGlobalDepth();
-  }
-
-  // current bucket is full, move some element to split image
-  // new page
-  page_id_t split_image_page_id;
-  HASH_TABLE_BUCKET_TYPE *split_image_page =
-      reinterpret_cast<HASH_TABLE_BUCKET_TYPE *>(buffer_pool_manager_->NewPage(&split_image_page_id));
-  assert(split_image_page != nullptr);
-
-  // change meta info point to bucket_page previously
-  uint32_t idx = bucket_idx;
-  uint32_t inc = dir_page->GetLocalHighBit(bucket_idx);
-  uint32_t old_local_depth = dir_page->GetLocalDepth(bucket_idx);
-  do {
-    assert(dir_page->GetLocalDepth(idx) == old_local_depth);
-
-    // update local depth
-    dir_page->IncrLocalDepth(idx);
-    idx = (idx + inc) % dir_page->Size();
-  } while (idx != bucket_idx);
-
-  inc = dir_page->GetLocalHighBit(bucket_idx);
-  do {
-    assert(dir_page->GetBucketPageId(idx) == bucket_page_id);
-
-    // update bucket page id
-    dir_page->SetBucketPageId(idx, split_image_page_id);
-    idx = (idx + inc) % dir_page->Size();
-  } while (idx != bucket_idx);
-
-  // move key/value to new split page
-  uint32_t local_mask = dir_page->GetLocalDepthMask(bucket_idx);
-  uint32_t new_bucket_idx = bucket_idx & local_mask;
-  for (uint32_t i = 0; i < BUCKET_ARRAY_SIZE; ++i) {
-    uint32_t new_idx = Hash(bucket_page->KeyAt(i)) & local_mask;
-    if (new_idx == new_bucket_idx) {
-      split_image_page->Insert(bucket_page->KeyAt(i), bucket_page->ValueAt(i), comparator_);
-      bucket_page->RemoveAt(i);
-    }
-  }
-
-  buffer_pool_manager_->UnpinPage(directory_page_id_, true, nullptr);
-  buffer_pool_manager_->UnpinPage(bucket_page_id, true, nullptr);
-  buffer_pool_manager_->UnpinPage(split_image_page_id, true, nullptr);
-  table_latch_.WUnlock();
-  return SplitInsert(transaction, key, value);
+  return false;
 }
 
 /*****************************************************************************
@@ -224,15 +226,15 @@ bool HASH_TABLE_TYPE::Remove(Transaction *transaction, const KeyType &key, const
 
   // need check even status is unsuccessful
   if (bucket_page->IsEmpty()) {
-    buffer_pool_manager_->UnpinPage(bucket_page_id, true, nullptr);
+    buffer_pool_manager_->UnpinPage(bucket_page_id, status, nullptr);
     page->WUnlatch();
     table_latch_.RUnlock();
-     
+
     Merge(transaction, key, value);
     return status;
   }
 
-  buffer_pool_manager_->UnpinPage(bucket_page_id, true, nullptr);
+  buffer_pool_manager_->UnpinPage(bucket_page_id, status, nullptr);
   page->WUnlatch();
   table_latch_.RUnlock();
   return status;
@@ -246,45 +248,46 @@ void HASH_TABLE_TYPE::Merge(Transaction *transaction, const KeyType &key, const 
   table_latch_.WLock();
 
   HashTableDirectoryPage *dir_page = FetchDirectoryPage();
-  page_id_t bucket_page_id = KeyToPageId(key, dir_page);
-  HASH_TABLE_BUCKET_TYPE *bucket_page = FetchBucketPage(bucket_page_id);
-  // have acquired bucket_page read latch, no need to acquire again
+  bool dir_dirty = false;
+  while (true) {
+    page_id_t bucket_page_id = KeyToPageId(key, dir_page);
+    HASH_TABLE_BUCKET_TYPE *bucket_page = FetchBucketPage(bucket_page_id);
+    // have acquired bucket_page read latch, no need to acquire again
 
-  uint32_t bucket_idx = KeyToDirectoryIndex(key, dir_page);
-  uint32_t local_depth = dir_page->GetLocalDepth(bucket_idx);
-  uint32_t split_image_idx = (bucket_idx + dir_page->GetLocalHighBit(bucket_idx) / 2) % dir_page->Size();
-  uint32_t split_image_depth = dir_page->GetLocalDepth(split_image_idx);
+    uint32_t bucket_idx = KeyToDirectoryIndex(key, dir_page);
+    uint32_t local_depth = dir_page->GetLocalDepth(bucket_idx);
+    uint32_t split_image_idx = (bucket_idx + dir_page->GetLocalHighBit(bucket_idx) / 2) % dir_page->Size();
+    uint32_t split_image_depth = dir_page->GetLocalDepth(split_image_idx);
 
-  // 3 scenarios no need to merge:
-  // 1. no longer empty
-  // 2. local_depth = 0
-  // 3. local_depth != split_image_depth
-  if (bucket_page->IsEmpty() && local_depth != 0 && split_image_depth == local_depth) {
-    uint32_t idx = bucket_idx;
-    uint32_t inc = dir_page->GetLocalHighBit(bucket_idx) / 2;
-    do {
-      assert(dir_page->GetLocalDepth(idx) == local_depth);
+    // 3 scenarios no need to merge:
+    // 1. no longer empty
+    // 2. local_depth = 0
+    // 3. local_depth != split_image_depth
+    if (bucket_page->IsEmpty() && local_depth != 0 && split_image_depth == local_depth) {
+      uint32_t idx = bucket_idx;
+      uint32_t inc = dir_page->GetLocalHighBit(bucket_idx) / 2;
+      do {
+        dir_page->SetBucketPageId(idx, dir_page->GetBucketPageId(split_image_idx));
+        dir_page->DecrLocalDepth(idx);
+        idx = (idx + inc) % dir_page->Size();
+      } while (idx != bucket_idx);
 
-      dir_page->SetBucketPageId(idx, dir_page->GetBucketPageId(split_image_idx));
-      dir_page->DecrLocalDepth(idx);
-      idx = (idx + inc) % dir_page->Size();
-    } while (idx != bucket_idx);
+      // shrink
+      if (dir_page->CanShrink()) {
+        dir_page->DecrGlobalDepth();
+      }
 
-    // shrink
-    if (dir_page->CanShrink()) {
-      dir_page->DecrGlobalDepth();
+      dir_dirty = true;
+      // unpin first, then delete
+      buffer_pool_manager_->UnpinPage(bucket_page_id, false, nullptr);
+      buffer_pool_manager_->DeletePage(bucket_page_id);
+    } else {
+      buffer_pool_manager_->UnpinPage(bucket_page_id, false, nullptr);
+      buffer_pool_manager_->UnpinPage(directory_page_id_, dir_dirty, nullptr);
+      table_latch_.WUnlock();
+      return;
     }
-
-    // unpin first, then delete
-    buffer_pool_manager_->UnpinPage(bucket_page_id, false, nullptr);
-    buffer_pool_manager_->DeletePage(bucket_page_id);
-    buffer_pool_manager_->UnpinPage(directory_page_id_, true, nullptr);
-  } else {
-    buffer_pool_manager_->UnpinPage(bucket_page_id, false, nullptr);
-    buffer_pool_manager_->UnpinPage(directory_page_id_, false, nullptr);
   }
-
-  table_latch_.WUnlock();
 }
 
 /*****************************************************************************
