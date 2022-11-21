@@ -259,7 +259,7 @@ class Trie {
    * @brief Construct a new Trie object. Initialize the root node with '\0'
    * character.
    */
-  Trie() { root_ = std::make_unique<TrieNode>(TrieNode('\0')); }
+  Trie() { root_ = std::make_unique<TrieNode>('\0'); }
 
   /**
    * TODO(P0): Add implementation
@@ -297,7 +297,7 @@ class Trie {
     auto cur = &root_;
     for (auto ch : key) {
       if (!(*cur)->HasChild(ch)) {
-        (*cur)->InsertChildNode(ch, std::make_unique<TrieNode>(TrieNode(ch)));
+        (*cur)->InsertChildNode(ch, std::make_unique<TrieNode>(ch));
       }
       cur = (*cur)->GetChildNode(ch);
     }

@@ -176,6 +176,8 @@ class ExtendibleHashTable : public HashTable<K, V> {
 
   // The following functions are completely optional, you can delete them if you have your own ideas.
 
+  auto CheckIntegrity() -> void;
+
   /**
    * @brief Redistribute the kv pairs in a full bucket.
    * @param bucket The bucket to be redistributed.
