@@ -162,6 +162,8 @@ class BufferPoolManagerInstance : public BufferPoolManager {
   /** This latch protects shared data structures. We recommend updating this comment to describe what it protects. */
   std::mutex latch_;
 
+  static constexpr int NO_AVAILABLE_FRAME_ID = -1;
+
   /**
    * @brief Allocate a page on disk. Caller should acquire the latch before calling this function.
    * @return the id of the allocated page
@@ -176,6 +178,12 @@ class BufferPoolManagerInstance : public BufferPoolManager {
     // This is a no-nop right now without a more complex data structure to track deallocated pages
   }
 
-  // TODO(student): You may add additional private members and helper functions
+  /**
+   * Find a frame from free_list_ if not empty, otherwise from replacer_
+   * @return frame_id_t
+   */
+  auto AvailableFrame() -> frame_id_t;
+
+  void FlushPg(Page *page);
 };
 }  // namespace bustub

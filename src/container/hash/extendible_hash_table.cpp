@@ -94,8 +94,11 @@ void ExtendibleHashTable<K, V>::Insert(const K &key, const V &value) {
 
     if (old_bucket->GetDepth() == global_depth_) {
       // double size dir_ array
+      for (int i = 0; i < (1 << global_depth_); ++i) {
+        dir_.push_back(dir_[i]);
+      }
+
       ++global_depth_;
-      dir_.insert(dir_.end(), dir_.begin(), dir_.end());
       assert(1 << global_depth_ == dir_.size());
 
       index = IndexOf(key);
@@ -125,7 +128,7 @@ void ExtendibleHashTable<K, V>::Insert(const K &key, const V &value) {
     }
   }
 
-  CheckIntegrity();
+  // CheckIntegrity();
 }
 
 template <typename K, typename V>

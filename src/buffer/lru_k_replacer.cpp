@@ -63,7 +63,6 @@ void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
   std::unique_lock<std::mutex> l(latch_);
 
   BUSTUB_ASSERT((size_t)frame_id < replacer_size_, "larger than replacer_size_");
-
   evictable_[frame_id] = set_evictable;
 }
 
@@ -71,13 +70,11 @@ void LRUKReplacer::Remove(frame_id_t frame_id) {
   std::unique_lock<std::mutex> l(latch_);
 
   BUSTUB_ASSERT((size_t)frame_id < replacer_size_, "larger than replacer_size_");
-
   if (accesss_history_[frame_id].empty()) {
     return;
   }
 
   BUSTUB_ASSERT(evictable_[frame_id], "non-evictable frame");
-
   accesss_history_[frame_id].clear();
 }
 
