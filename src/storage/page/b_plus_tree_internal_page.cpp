@@ -53,8 +53,9 @@ INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetValueAt(int index, const ValueType &value) { array_[index].second = value; }
 
 INDEX_TEMPLATE_ARGUMENTS
-auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::UpperBound(const KeyType &key, const KeyComparator comparator) const -> int {
-  int l = 0, r = GetSize();
+auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::UpperBound(const KeyType &key, const KeyComparator &comparator) const -> int {
+  int l = 0;
+  int r = GetSize();
   while (l + 1 < r) {
     auto m = (l + r) / 2;
     if (comparator(KeyAt(m), key) == 1) {
@@ -79,7 +80,8 @@ INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::NeedMerge() const -> bool { return GetSize() < GetMinSize(); }
 
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertKV(const KeyType &key, const ValueType &value, const KeyComparator comparator) {
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertKV(const KeyType &key, const ValueType &value,
+                                              const KeyComparator &comparator) {
   auto index = UpperBound(key, comparator);
   // move to next location
   for (int i = GetSize(); i > index; --i) {

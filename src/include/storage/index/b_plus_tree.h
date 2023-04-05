@@ -86,19 +86,23 @@ class BPlusTree {
 
   auto GetParent(BPlusTreePage *tree_page, bool create_if_not_exsit) -> InternalPage *;
 
+  void UpdateParentPageId(const page_id_t &child_page_id, const page_id_t &parent_page_id);
+
+  auto LeafInsert(LeafPage *leaf_page, const KeyType &key, const ValueType &value) -> bool;
+
   void LeafSplit(LeafPage *leaf_page);
 
   void InternalInsert(InternalPage *internal_page, const KeyType &key, const page_id_t &value);
 
   void InternalSplit(InternalPage *internal_page, const KeyType &key, const page_id_t &value);
 
-  void LeafMerge(LeafPage *leaf_page);
+  void LeafMerge(LeafPage *leaf, const KeyType &key);
 
-  void InternalMerge(InternalPage *internal_page);
+  auto BorrowFromSiblingLeaf(LeafPage *leaf, const KeyType &key) -> bool;
 
-  auto BorrowFromSiblingLeaf(LeafPage *leaf) -> bool;
+  void InternalMerge(InternalPage *internal_page, const KeyType &key);
 
-  auto BorrowFromSiblingInternal(InternalPage *internal_page) -> bool;
+  auto BorrowFromSiblingInternal(InternalPage *internal_page, const KeyType &key) -> bool;
 
   // member variable
   std::string index_name_;

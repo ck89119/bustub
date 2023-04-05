@@ -56,7 +56,8 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::ValueAt(int index) const -> ValueType { return 
 
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_LEAF_PAGE_TYPE::LowerBound(const KeyType &key, const KeyComparator &comparator) const -> int {
-  int l = -1, r = GetSize();
+  int l = -1;
+  int r = GetSize();
   while (l + 1 < r) {
     auto m = (l + r) / 2;
     if (comparator(KeyAt(m), key) == -1) {
