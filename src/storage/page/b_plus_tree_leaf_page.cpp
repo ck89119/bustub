@@ -73,7 +73,7 @@ INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::SetKV(int index, const MappingType &&kv) { array_[index] = kv; }
 
 INDEX_TEMPLATE_ARGUMENTS
-auto B_PLUS_TREE_LEAF_PAGE_TYPE::GetKV(int index) const -> MappingType { return array_[index]; }
+auto B_PLUS_TREE_LEAF_PAGE_TYPE::GetKV(int index) const -> const MappingType && { return std::move(array_[index]); }
 
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_LEAF_PAGE_TYPE::NeedSplit() const -> bool { return GetSize() >= GetMaxSize(); }
