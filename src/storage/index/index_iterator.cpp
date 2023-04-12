@@ -25,7 +25,9 @@ INDEXITERATOR_TYPE::~IndexIterator() = default;  // NOLINT
 INDEX_TEMPLATE_ARGUMENTS
 auto INDEXITERATOR_TYPE::IsEnd() -> bool {
   auto leaf = reinterpret_cast<LeafPage *>(buffer_pool_manager_->FetchPage(page_id_));
+  leaf->RLatch();
   auto ans = index_ == leaf->GetSize() && leaf->GetNextPageId() == INVALID_PAGE_ID;
+  leaf->RUnlatch();
   buffer_pool_manager_->UnpinPage(leaf->GetPageId(), false);
   return ans;
 }
@@ -33,7 +35,9 @@ auto INDEXITERATOR_TYPE::IsEnd() -> bool {
 INDEX_TEMPLATE_ARGUMENTS
 auto INDEXITERATOR_TYPE::operator*() -> const MappingType & {
   auto leaf = reinterpret_cast<LeafPage *>(buffer_pool_manager_->FetchPage(page_id_));
+  leaf->RLatch();
   auto &&ans = leaf->GetKV(index_);
+  leaf->RUnlatch();
   buffer_pool_manager_->UnpinPage(leaf->GetPageId(), false);
   return ans;
 }

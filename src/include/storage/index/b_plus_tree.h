@@ -10,7 +10,7 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include <queue>
+#include <deque>
 #include <string>
 #include <vector>
 
@@ -82,27 +82,37 @@ class BPlusTree {
 
   void ToString(BPlusTreePage *page, BufferPoolManager *bpm) const;
 
-  auto FindLeafPage(const KeyType &key) const -> LeafPage *;
+  auto GetRootPage() -> BPlusTreePage *;
 
-  auto GetParent(BPlusTreePage *tree_page, bool create_if_not_exsit) -> InternalPage *;
+  auto FindLeafPageForRead(const KeyType &key, bool write_latch_leaf = false) -> LeafPage *;
+
+  auto FindLeafPageForWrite(const KeyType &key, WriteType write_type) -> std::deque<BPlusTreePage *>;
+
+  auto GetParent(BPlusTreePage *tree_page, bool create_if_not_exist) -> InternalPage *;
 
   void UpdateParentPageId(const page_id_t &child_page_id, const page_id_t &parent_page_id);
 
-  auto LeafInsert(LeafPage *leaf_page, const KeyType &key, const ValueType &value) -> bool;
+  auto LeafInsert(std::deque<BPlusTreePage *> &latched_pages, const KeyType &key, const ValueType &value) -> bool;
 
-  void LeafSplit(LeafPage *leaf_page);
+  void LeafSplit(std::deque<BPlusTreePage *> &latched_pages);
 
-  void InternalInsert(InternalPage *internal_page, const KeyType &key, const page_id_t &value);
+  void InternalInsert(std::deque<BPlusTreePage *> &latched_pages, InternalPage *internal_page, const KeyType &key,
+                      const page_id_t &value);
 
-  void InternalSplit(InternalPage *internal_page, const KeyType &key, const page_id_t &value);
+  void InternalSplit(std::deque<BPlusTreePage *> &latched_pages, InternalPage *internal_page, const KeyType &key,
+                     const page_id_t &value);
 
-  void LeafMerge(LeafPage *leaf, const KeyType &key);
+  void LeafMerge(LeafPage *leaf);
 
-  auto BorrowFromSiblingLeaf(LeafPage *leaf, const KeyType &key) -> bool;
+  void LeafMerge(LeafPage *left, LeafPage *right);
 
-  void InternalMerge(InternalPage *internal_page, const KeyType &key);
+  auto BorrowFromSiblingLeaf(LeafPage *leaf) -> bool;
 
-  auto BorrowFromSiblingInternal(InternalPage *internal_page, const KeyType &key) -> bool;
+  void InternalMerge(InternalPage *internal_page);
+
+  void InternalMerge(InternalPage *left, InternalPage *right);
+
+  auto BorrowFromSiblingInternal(InternalPage *internal_page) -> bool;
 
   // member variable
   std::string index_name_;
@@ -111,6 +121,8 @@ class BPlusTree {
   KeyComparator comparator_;
   int leaf_max_size_;
   int internal_max_size_;
+  // protect root_page_id_
+  ReaderWriterLatch tree_latch_;
 };
 
 }  // namespace bustub

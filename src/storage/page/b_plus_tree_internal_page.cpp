@@ -54,11 +54,11 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetValueAt(int index, const ValueType &valu
 
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::UpperBound(const KeyType &key, const KeyComparator &comparator) const -> int {
-  int l = 0;
+  int l = -1;
   int r = GetSize();
   while (l + 1 < r) {
     auto m = (l + r) / 2;
-    if (comparator(KeyAt(m), key) == 1) {
+    if (comparator(KeyAt(m), key) > 0) {
       r = m;
     } else {
       l = m;

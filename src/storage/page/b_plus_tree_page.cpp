@@ -58,4 +58,23 @@ void BPlusTreePage::SetPageId(page_id_t page_id) { page_id_ = page_id; }
  */
 void BPlusTreePage::SetLSN(lsn_t lsn) { lsn_ = lsn; }
 
+void BPlusTreePage::RLatch() { reinterpret_cast<Page *>(this)->RLatch(); }
+
+void BPlusTreePage::RUnlatch() { reinterpret_cast<Page *>(this)->RUnlatch(); }
+
+void BPlusTreePage::WLatch() { reinterpret_cast<Page *>(this)->WLatch(); }
+
+void BPlusTreePage::WUnlatch() { reinterpret_cast<Page *>(this)->WUnlatch(); }
+
+auto BPlusTreePage::IsSafe(WriteType write_type) const -> bool {
+  if (write_type == WriteType::INSERT) {
+    return GetSize() < GetMaxSize() - (IsLeafPage() ? 1 : 0);
+  }
+  if (write_type == WriteType::DELETE) {
+    return GetSize() > GetMinSize();
+  }
+
+  UNREACHABLE("not supported write type");
+}
+
 }  // namespace bustub

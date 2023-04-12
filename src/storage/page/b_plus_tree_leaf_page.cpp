@@ -60,7 +60,7 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::LowerBound(const KeyType &key, const KeyCompara
   int r = GetSize();
   while (l + 1 < r) {
     auto m = (l + r) / 2;
-    if (comparator(KeyAt(m), key) == -1) {
+    if (comparator(KeyAt(m), key) < 0) {
       l = m;
     } else {
       r = m;
