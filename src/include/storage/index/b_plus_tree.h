@@ -102,17 +102,22 @@ class BPlusTree {
   void InternalSplit(std::deque<BPlusTreePage *> &latched_pages, InternalPage *internal_page, const KeyType &key,
                      const page_id_t &value);
 
-  void LeafMerge(LeafPage *leaf);
+  void LeafMerge(LeafPage *leaf, const KeyType &min_key);
 
-  void LeafMerge(LeafPage *left, LeafPage *right);
+  auto BorrowLeftLeaf(LeafPage *leaf, LeafPage *left, InternalPage *parent, int leaf_index) -> bool;
 
-  auto BorrowFromSiblingLeaf(LeafPage *leaf) -> bool;
+  auto BorrowRightLeaf(LeafPage *leaf, LeafPage *right, InternalPage *parent, int leaf_index) -> bool;
 
-  void InternalMerge(InternalPage *internal_page);
+  auto LeafMergeRightToLeft(LeafPage *left, LeafPage *right, InternalPage *parent, int right_index) -> bool;
 
-  void InternalMerge(InternalPage *left, InternalPage *right);
+  void InternalMerge(InternalPage *internal_page, const KeyType &min_key);
 
-  auto BorrowFromSiblingInternal(InternalPage *internal_page) -> bool;
+  auto BorrowLeftInternal(InternalPage *internal, InternalPage *left, InternalPage *parent, int internal_index) -> bool;
+
+  auto BorrowRightInternal(InternalPage *internal, InternalPage *right, InternalPage *parent, int internal_index)
+      -> bool;
+
+  auto InternalMergeRightToLeft(InternalPage *left, InternalPage *right, InternalPage *parent, int right_index) -> bool;
 
   // member variable
   std::string index_name_;

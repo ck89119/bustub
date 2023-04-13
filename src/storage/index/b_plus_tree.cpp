@@ -91,7 +91,7 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
  *****************************************************************************/
 /*
  * Delete key & value pair associated with input key
- * If current tree is empty, return immdiately.
+ * If current tree is empty, return immediately.
  * If not, User needs to first find the right leaf page as deletion target, then
  * delete entry from leaf page. Remember to deal with redistribute or merge if
  * necessary.
@@ -114,6 +114,7 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
     return;
   }
 
+  auto min_key = leaf->KeyAt(0);
   // move data to previous index
   for (int i = index + 1; i < leaf->GetSize(); ++i) {
     leaf->SetKV(i - 1, leaf->GetKV(i));
@@ -121,7 +122,7 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
   leaf->IncreaseSize(-1);
 
   if (leaf->NeedMerge()) {
-    LeafMerge(leaf);
+    LeafMerge(leaf, min_key);
   }
 
   for (auto *page : latched_pages) {
@@ -210,7 +211,12 @@ auto BPLUSTREE_TYPE::End() -> INDEXITERATOR_TYPE {
  * @return Page id of the root of this tree
  */
 INDEX_TEMPLATE_ARGUMENTS
-auto BPLUSTREE_TYPE::GetRootPageId() -> page_id_t { return root_page_id_; }
+auto BPLUSTREE_TYPE::GetRootPageId() -> page_id_t {
+  tree_latch_.RLock();
+  auto ans = root_page_id_;
+  tree_latch_.RUnlock();
+  return ans;
+}
 
 /*****************************************************************************
  * UTILITIES AND DEBUG
@@ -582,9 +588,10 @@ void BPLUSTREE_TYPE::LeafSplit(std::deque<BPlusTreePage *> &latched_pages) {
   leaf->SetNextPageId(new_leaf->GetPageId());
 
   // get parent
+  auto need_to_latch = leaf->IsRootPage();
   InternalPage *parent = GetParent(leaf, true);
   // if parent is new created page, add it to latched_pages
-  if (parent->GetPageId() != latched_pages.front()->GetPageId()) {
+  if (need_to_latch) {
     latched_pages.push_front(parent);
   }
 
@@ -648,9 +655,10 @@ void BPLUSTREE_TYPE::InternalSplit(std::deque<BPlusTreePage *> &latched_pages, I
 
   // parent level part
   // insert the new entry to parent node
+  auto need_to_latch = internal->IsRootPage();
   InternalPage *parent = GetParent(internal, true);
   // if parent is new created page, add it to latched_pages
-  if (parent->GetPageId() != latched_pages.front()->GetPageId()) {
+  if (need_to_latch) {
     latched_pages.push_front(parent);
   }
 
@@ -668,34 +676,105 @@ void BPLUSTREE_TYPE::InternalSplit(std::deque<BPlusTreePage *> &latched_pages, I
 }
 
 INDEX_TEMPLATE_ARGUMENTS
-void BPLUSTREE_TYPE::LeafMerge(LeafPage *leaf) {
+void BPLUSTREE_TYPE::LeafMerge(LeafPage *leaf, const KeyType &min_key) {
   if (leaf->IsRootPage()) {
     return;
   }
 
-  if (BorrowFromSiblingLeaf(leaf)) {
-    return;
-  }
-
+  bool status = false;
+  LeafPage *left = nullptr;
+  LeafPage *right = nullptr;
   InternalPage *parent = GetParent(leaf, false);
-  assert(leaf->GetSize() > 0);
-  auto index = parent->UpperBound(leaf->KeyAt(0), comparator_) - 1;
+  auto index = parent->UpperBound(min_key, comparator_) - 1;
 
-  if (index - 1 >= 0) {  // if have left sibling
-    auto *left = reinterpret_cast<LeafPage *>(buffer_pool_manager_->FetchPage(parent->ValueAt(index - 1)));
-    LeafMerge(left, leaf);
-    buffer_pool_manager_->UnpinPage(left->GetPageId(), true);
-  } else if (index + 1 < parent->GetSize()) {  // if have right sibling
-    auto *right = reinterpret_cast<LeafPage *>(buffer_pool_manager_->FetchPage(parent->ValueAt(index + 1)));
-    LeafMerge(leaf, right);
-    buffer_pool_manager_->UnpinPage(right->GetPageId(), true);
+  // get left child
+  if (index - 1 >= 0) {
+    left = reinterpret_cast<LeafPage *>(buffer_pool_manager_->FetchPage(parent->ValueAt(index - 1)));
   }
 
-  buffer_pool_manager_->UnpinPage(parent->GetPageId(), false);
+  // get right child
+  if (index + 1 < parent->GetSize()) {
+    right = reinterpret_cast<LeafPage *>(buffer_pool_manager_->FetchPage(parent->ValueAt(index + 1)));
+  }
+
+  // try borrow from left child
+  if (!status) {
+    status = BorrowLeftLeaf(leaf, left, parent, index);
+  }
+
+  // try borrow from right child
+  if (!status) {
+    status = BorrowRightLeaf(leaf, right, parent, index);
+  }
+
+  // try merge left child
+  if (!status) {
+    status = LeafMergeRightToLeft(left, leaf, parent, index);
+  }
+
+  // try merge right child
+  if (!status) {
+    status = LeafMergeRightToLeft(leaf, right, parent, index + 1);
+  }
+
+  // unpin pages
+  if (left != nullptr) {
+    buffer_pool_manager_->UnpinPage(left->GetPageId(), status);
+  }
+  if (right != nullptr) {
+    buffer_pool_manager_->UnpinPage(right->GetPageId(), status);
+  }
+  buffer_pool_manager_->UnpinPage(parent->GetPageId(), status);
 }
 
 INDEX_TEMPLATE_ARGUMENTS
-void BPLUSTREE_TYPE::LeafMerge(LeafPage *left, LeafPage *right) {
+auto BPLUSTREE_TYPE::BorrowLeftLeaf(LeafPage *leaf, LeafPage *left, InternalPage *parent, int leaf_index) -> bool {
+  if (left == nullptr || left->GetSize() <= left->GetMinSize()) {
+    return false;
+  }
+
+  // move right most element from left sibling to leaf page
+  for (int i = leaf->GetSize(); i > 0; --i) {
+    leaf->SetKV(i, leaf->GetKV(i - 1));
+  }
+  leaf->SetKV(0, left->GetKV(left->GetSize() - 1));
+
+  // update size
+  leaf->IncreaseSize(1);
+  left->IncreaseSize(-1);
+
+  // update parent key
+  parent->SetKeyAt(leaf_index, leaf->KeyAt(0));
+  return true;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+auto BPLUSTREE_TYPE::BorrowRightLeaf(LeafPage *leaf, LeafPage *right, InternalPage *parent, int leaf_index) -> bool {
+  if (right == nullptr || right->GetSize() <= right->GetMinSize()) {
+    return false;
+  }
+
+  // move right most element from left sibling to leaf page
+  leaf->SetKV(leaf->GetSize(), right->GetKV(0));
+  for (int i = 1; i < right->GetSize(); ++i) {
+    right->SetKV(i - 1, right->GetKV(i));
+  }
+
+  // update size
+  leaf->IncreaseSize(1);
+  right->IncreaseSize(-1);
+
+  // update parent key
+  parent->SetKeyAt(leaf_index + 1, right->KeyAt(0));
+  return true;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+auto BPLUSTREE_TYPE::LeafMergeRightToLeft(LeafPage *left, LeafPage *right, InternalPage *parent, int right_index)
+    -> bool {
+  if (left == nullptr || right == nullptr) {
+    return false;
+  }
   assert(left->GetSize() + right->GetSize() < leaf_max_size_);
 
   // move data to left sibling
@@ -709,88 +788,26 @@ void BPLUSTREE_TYPE::LeafMerge(LeafPage *left, LeafPage *right) {
   // update next page id
   left->SetNextPageId(right->GetNextPageId());
 
-  // update parent
-  InternalPage *parent = GetParent(left, false);
-  assert(right->GetSize() > 0);
-  auto index = parent->UpperBound(right->KeyAt(0), comparator_) - 1;
-  for (int i = index + 1; i < parent->GetSize(); ++i) {
+  // save the min key before delete
+  assert(parent->GetSize() > 1);
+  auto min_key = parent->KeyAt(1);
+
+  // update parent, delete right's correspond entry in parent
+  for (int i = right_index + 1; i < parent->GetSize(); ++i) {
     parent->SetKV(i - 1, parent->GetKV(i));
   }
   parent->IncreaseSize(-1);
 
   // parent merge
   if (parent->NeedMerge()) {
-    InternalMerge(parent);
+    InternalMerge(parent, min_key);
   }
 
-  buffer_pool_manager_->UnpinPage(parent->GetPageId(), true);
+  return true;
 }
 
 INDEX_TEMPLATE_ARGUMENTS
-auto BPLUSTREE_TYPE::BorrowFromSiblingLeaf(LeafPage *leaf) -> bool {
-  InternalPage *parent = GetParent(leaf, false);
-  assert(leaf->GetSize() > 0);
-  auto index = parent->UpperBound(leaf->KeyAt(0), comparator_) - 1;
-  // if have left sibling and left sibling's size > min_size, borrow one entry
-  if (index - 1 >= 0) {
-    bool ans = false;
-    auto *left_sibling_page = reinterpret_cast<LeafPage *>(buffer_pool_manager_->FetchPage(parent->ValueAt(index - 1)));
-    if (left_sibling_page->GetSize() > left_sibling_page->GetMinSize()) {
-      // move right most element from left sibling to leaf page
-      for (int i = leaf->GetSize(); i > 0; --i) {
-        leaf->SetKV(i, leaf->GetKV(i - 1));
-      }
-      leaf->SetKV(0, left_sibling_page->GetKV(left_sibling_page->GetSize() - 1));
-      // leaf node has no need to update parent id
-
-      // update size
-      leaf->IncreaseSize(1);
-      left_sibling_page->IncreaseSize(-1);
-
-      // update parent key
-      parent->SetKeyAt(index, leaf->KeyAt(0));
-
-      ans = true;
-    }
-
-    buffer_pool_manager_->UnpinPage(left_sibling_page->GetPageId(), true);
-    buffer_pool_manager_->UnpinPage(parent->GetPageId(), true);
-    return ans;
-  }
-
-  // borrow from right sibling
-  if (index + 1 < parent->GetSize()) {
-    bool ans = false;
-    auto *right_sibling_page =
-        reinterpret_cast<LeafPage *>(buffer_pool_manager_->FetchPage(parent->ValueAt(index + 1)));
-    if (right_sibling_page->GetSize() > right_sibling_page->GetMinSize()) {
-      // move right most element from left sibling to leaf page
-      leaf->SetKV(leaf->GetSize(), right_sibling_page->GetKV(0));
-      for (int i = 1; i < right_sibling_page->GetSize(); ++i) {
-        right_sibling_page->SetKV(i - 1, right_sibling_page->GetKV(i));
-      }
-
-      // update size
-      leaf->IncreaseSize(1);
-      right_sibling_page->IncreaseSize(-1);
-
-      // update parent key
-      parent->SetKeyAt(index + 1, right_sibling_page->KeyAt(0));
-
-      ans = true;
-    }
-
-    buffer_pool_manager_->UnpinPage(right_sibling_page->GetPageId(), true);
-    buffer_pool_manager_->UnpinPage(parent->GetPageId(), true);
-    return ans;
-  }
-
-  buffer_pool_manager_->UnpinPage(parent->GetPageId(), true);
-  return false;
-}
-
-INDEX_TEMPLATE_ARGUMENTS
-void BPLUSTREE_TYPE::InternalMerge(InternalPage *internal) {
+void BPLUSTREE_TYPE::InternalMerge(InternalPage *internal, const KeyType &min_key) {
   if (internal->IsRootPage()) {
     // if root has only one child, make the child as root
     if (internal->GetSize() == 1) {
@@ -810,34 +827,119 @@ void BPLUSTREE_TYPE::InternalMerge(InternalPage *internal) {
     return;
   }
 
-  if (BorrowFromSiblingInternal(internal)) {
-    return;
-  }
-
+  bool status = false;
+  InternalPage *left = nullptr;
+  InternalPage *right = nullptr;
   InternalPage *parent = GetParent(internal, false);
-  assert(internal->GetSize() > 1);
-  auto index = parent->UpperBound(internal->KeyAt(1), comparator_) - 1;
+  auto index = parent->UpperBound(min_key, comparator_) - 1;
 
-  if (index - 1 >= 0) {  // if have left sibling
-    auto *left = reinterpret_cast<InternalPage *>(buffer_pool_manager_->FetchPage(parent->ValueAt(index - 1)));
-    InternalMerge(left, internal);
-    buffer_pool_manager_->UnpinPage(left->GetPageId(), true);
-  } else if (index + 1 < parent->GetSize()) {  // if have right sibling
-    auto *right = reinterpret_cast<InternalPage *>(buffer_pool_manager_->FetchPage(parent->ValueAt(index + 1)));
-    InternalMerge(internal, right);
-    buffer_pool_manager_->UnpinPage(right->GetPageId(), true);
+  // get left child
+  if (index - 1 >= 0) {
+    left = reinterpret_cast<InternalPage *>(buffer_pool_manager_->FetchPage(parent->ValueAt(index - 1)));
   }
 
-  buffer_pool_manager_->UnpinPage(parent->GetPageId(), false);
+  // get right child
+  if (index + 1 < parent->GetSize()) {
+    right = reinterpret_cast<InternalPage *>(buffer_pool_manager_->FetchPage(parent->ValueAt(index + 1)));
+  }
+
+  // try borrow from left child
+  if (!status) {
+    status = BorrowLeftInternal(internal, left, parent, index);
+  }
+
+  // try borrow from right child
+  if (!status) {
+    status = BorrowRightInternal(internal, right, parent, index);
+  }
+
+  // try merge left child
+  if (!status) {
+    status = InternalMergeRightToLeft(left, internal, parent, index);
+  }
+
+  // try merge right child
+  if (!status) {
+    status = InternalMergeRightToLeft(internal, right, parent, index + 1);
+  }
+
+  // unpin pages
+  if (left != nullptr) {
+    buffer_pool_manager_->UnpinPage(left->GetPageId(), status);
+  }
+  if (right != nullptr) {
+    buffer_pool_manager_->UnpinPage(right->GetPageId(), status);
+  }
+  buffer_pool_manager_->UnpinPage(parent->GetPageId(), status);
 }
 
 INDEX_TEMPLATE_ARGUMENTS
-void BPLUSTREE_TYPE::InternalMerge(InternalPage *left, InternalPage *right) {
-  assert(left->GetSize() + right->GetSize() <= internal_max_size_);
+auto BPLUSTREE_TYPE::BorrowLeftInternal(InternalPage *internal, InternalPage *left, InternalPage *parent,
+                                        int internal_index) -> bool {
+  if (left == nullptr || left->GetSize() <= left->GetMinSize()) {
+    return false;
+  }
 
-  InternalPage *parent = GetParent(left, false);
-  assert(right->GetSize() > 1);
-  auto index = parent->UpperBound(right->KeyAt(1), comparator_) - 1;
+  // move internal's element to next location
+  for (int i = internal->GetSize(); i > 0; --i) {
+    internal->SetKV(i, internal->GetKV(i - 1));
+  }
+
+  // move parent key to current page's location 1
+  internal->SetKeyAt(1, parent->KeyAt(internal_index));
+
+  // update parent key
+  parent->SetKeyAt(internal_index, left->KeyAt(left->GetSize() - 1));
+
+  // move left sibling's right most value to internal's internal_index 0
+  internal->SetValueAt(0, left->ValueAt(left->GetSize() - 1));
+  // update child node's parent_id field
+  UpdateParentPageId(internal->ValueAt(0), internal->GetPageId());
+
+  // update size
+  internal->IncreaseSize(1);
+  left->IncreaseSize(-1);
+
+  return true;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+auto BPLUSTREE_TYPE::BorrowRightInternal(InternalPage *internal, InternalPage *right, InternalPage *parent,
+                                         int internal_index) -> bool {
+  if (right == nullptr || right->GetSize() <= right->GetMinSize()) {
+    return false;
+  }
+
+  // move parent key to internal's tail
+  internal->SetKeyAt(internal->GetSize(), parent->KeyAt(internal_index + 1));
+
+  // move right sibling's first value (internal_index 0) to internal's tail
+  internal->SetValueAt(internal->GetSize(), right->ValueAt(0));
+  // update child node's parent_id field
+  UpdateParentPageId(right->ValueAt(0), internal->GetPageId());
+
+  // update parent key
+  parent->SetKeyAt(internal_index, right->KeyAt(1));
+
+  // move right sibling's data to previous position
+  for (int i = 1; i < right->GetSize(); ++i) {
+    right->SetKV(i - 1, right->GetKV(i));
+  }
+
+  // update size
+  internal->IncreaseSize(1);
+  right->IncreaseSize(-1);
+
+  return true;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+auto BPLUSTREE_TYPE::InternalMergeRightToLeft(InternalPage *left, InternalPage *right, InternalPage *parent,
+                                              int right_index) -> bool {
+  if (left == nullptr || right == nullptr) {
+    return false;
+  }
+  assert(left->GetSize() + right->GetSize() <= internal_max_size_);
 
   // move data to left sibling
   for (int i = 0; i < right->GetSize(); ++i) {
@@ -846,94 +948,27 @@ void BPLUSTREE_TYPE::InternalMerge(InternalPage *left, InternalPage *right) {
     UpdateParentPageId(right->ValueAt(i), left->GetPageId());
   }
   // right[0]'s key is meaningless, need parent's key
-  left->SetKeyAt(left->GetSize(), parent->KeyAt(index));
+  left->SetKeyAt(left->GetSize(), parent->KeyAt(right_index));
 
   // update size
   left->IncreaseSize(right->GetSize());
 
+  // save the min key before delete
+  assert(parent->GetSize() > 1);
+  auto min_key = parent->KeyAt(1);
+
   // update parent
-  for (int i = index + 1; i < parent->GetSize(); ++i) {
+  for (int i = right_index + 1; i < parent->GetSize(); ++i) {
     parent->SetKV(i - 1, parent->GetKV(i));
   }
   parent->IncreaseSize(-1);
 
   // parent merge
   if (parent->NeedMerge()) {
-    InternalMerge(parent);
+    InternalMerge(parent, min_key);
   }
 
-  buffer_pool_manager_->UnpinPage(parent->GetPageId(), true);
-}
-
-INDEX_TEMPLATE_ARGUMENTS
-auto BPLUSTREE_TYPE::BorrowFromSiblingInternal(InternalPage *internal) -> bool {
-  InternalPage *parent = GetParent(internal, false);
-  assert(internal->GetSize() > 1);
-  auto index = parent->UpperBound(internal->KeyAt(1), comparator_) - 1;
-  // if have left sibling and left sibling's size > min_size, borrow one entry
-  if (index - 1 >= 0) {
-    auto *left_sibling_page =
-        reinterpret_cast<InternalPage *>(buffer_pool_manager_->FetchPage(parent->ValueAt(index - 1)));
-    if (left_sibling_page->GetSize() > left_sibling_page->GetMinSize()) {
-      // move internal's data to next position (Value in index 0 is not set, Key in index 1 is not set)
-      for (int i = internal->GetSize(); i > 0; --i) {
-        internal->SetKV(i, internal->GetKV(i - 1));
-      }
-
-      // move parent key to internal's index 1
-      internal->SetKeyAt(1, parent->KeyAt(index));
-
-      // move left sibling's right most value to internal's index 0
-      internal->SetValueAt(0, left_sibling_page->ValueAt(left_sibling_page->GetSize() - 1));
-      // update child node's parent_id field
-      UpdateParentPageId(internal->ValueAt(0), internal->GetPageId());
-
-      // update parent key
-      parent->SetKeyAt(index, left_sibling_page->KeyAt(left_sibling_page->GetSize() - 1));
-
-      // update size
-      internal->IncreaseSize(1);
-      left_sibling_page->IncreaseSize(-1);
-    }
-
-    buffer_pool_manager_->UnpinPage(left_sibling_page->GetPageId(), true);
-    buffer_pool_manager_->UnpinPage(parent->GetPageId(), true);
-    return true;
-  }
-
-  // borrow from right sibling
-  if (index + 1 < parent->GetSize()) {
-    auto *right_sibling_page =
-        reinterpret_cast<InternalPage *>(buffer_pool_manager_->FetchPage(parent->ValueAt(index + 1)));
-    if (right_sibling_page->GetSize() > right_sibling_page->GetMinSize()) {
-      // move parent key to internal's tail
-      internal->SetKeyAt(internal->GetSize(), parent->KeyAt(index));
-
-      // move right sibling's first value (index 0) to internal's tail
-      internal->SetValueAt(internal->GetSize(), right_sibling_page->ValueAt(0));
-      // update child node's parent_id field
-      UpdateParentPageId(right_sibling_page->ValueAt(0), internal->GetPageId());
-
-      // update parent key
-      parent->SetKeyAt(index, right_sibling_page->KeyAt(1));
-
-      // move right sibling's data to previous position
-      for (int i = 1; i < right_sibling_page->GetSize(); ++i) {
-        right_sibling_page->SetKV(i - 1, right_sibling_page->GetKV(i));
-      }
-
-      // update size
-      internal->IncreaseSize(1);
-      right_sibling_page->IncreaseSize(-1);
-    }
-
-    buffer_pool_manager_->UnpinPage(right_sibling_page->GetPageId(), true);
-    buffer_pool_manager_->UnpinPage(parent->GetPageId(), true);
-    return true;
-  }
-
-  buffer_pool_manager_->UnpinPage(parent->GetPageId(), false);
-  return false;
+  return true;
 }
 
 template class BPlusTree<GenericKey<4>, RID, GenericComparator<4>>;
