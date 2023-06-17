@@ -45,10 +45,14 @@ auto INDEXITERATOR_TYPE::operator*() -> const MappingType & {
 INDEX_TEMPLATE_ARGUMENTS
 auto INDEXITERATOR_TYPE::operator++() -> INDEXITERATOR_TYPE & {
   auto leaf = reinterpret_cast<LeafPage *>(buffer_pool_manager_->FetchPage(page_id_));
+  leaf->RLatch();
+  //  std::cout << "page_id_ = " << page_id_ << ", index = " << index_ << ", leaf->GetSize() = " << leaf->GetSize() <<
+  //  std::endl;
   if (++index_ == leaf->GetSize() && leaf->GetNextPageId() != INVALID_PAGE_ID) {
     page_id_ = leaf->GetNextPageId();
     index_ = 0;
   }
+  leaf->RUnlatch();
   buffer_pool_manager_->UnpinPage(leaf->GetPageId(), false);
   return *this;
 }

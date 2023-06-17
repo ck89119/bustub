@@ -140,7 +140,7 @@ class LRUKReplacer {
   // size_t curr_size_{0};
   size_t replacer_size_;
   size_t k_;
-  std::vector<std::list<size_t>> accesss_history_;
+  std::vector<std::list<size_t>> access_history_;
   std::vector<bool> evictable_;
   std::mutex latch_;
 

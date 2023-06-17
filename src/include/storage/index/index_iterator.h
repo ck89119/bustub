@@ -44,7 +44,7 @@ class IndexIterator {
  private:
   // bpm
   BufferPoolManager *buffer_pool_manager_;
-  // leave page id
+  // leaf page id
   page_id_t page_id_;
   // index of array_
   int index_;

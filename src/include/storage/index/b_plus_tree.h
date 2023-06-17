@@ -10,7 +10,6 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include <deque>
 #include <string>
 #include <vector>
 
@@ -86,38 +85,39 @@ class BPlusTree {
 
   auto FindLeafPageForRead(const KeyType &key, bool write_latch_leaf = false) -> LeafPage *;
 
-  auto FindLeafPageForWrite(const KeyType &key, WriteType write_type) -> std::deque<BPlusTreePage *>;
+  auto FindLeafPageForWrite(const KeyType &key, WriteType write_type, Transaction *transaction) -> LeafPage *;
 
-  auto GetParent(BPlusTreePage *tree_page, bool create_if_not_exist) -> InternalPage *;
+  auto GetParent(BPlusTreePage *tree_page) -> InternalPage *;
 
   void UpdateParentPageId(const page_id_t &child_page_id, const page_id_t &parent_page_id);
 
-  auto LeafInsert(std::deque<BPlusTreePage *> &latched_pages, const KeyType &key, const ValueType &value) -> bool;
+  auto LeafInsert(const KeyType &key, const ValueType &value, Transaction *transaction) -> bool;
 
-  void LeafSplit(std::deque<BPlusTreePage *> &latched_pages);
+  void LeafSplit(Transaction *transaction);
 
-  void InternalInsert(std::deque<BPlusTreePage *> &latched_pages, InternalPage *internal_page, const KeyType &key,
-                      const page_id_t &value);
+  void InternalInsert(InternalPage *internal_page, const KeyType &key, const page_id_t &value,
+                      Transaction *transaction);
 
-  void InternalSplit(std::deque<BPlusTreePage *> &latched_pages, InternalPage *internal_page, const KeyType &key,
-                     const page_id_t &value);
+  void InternalSplit(InternalPage *internal_page, const KeyType &key, const page_id_t &value, Transaction *transaction);
 
-  void LeafMerge(LeafPage *leaf, const KeyType &min_key);
+  void LeafMerge(LeafPage *leaf, const KeyType &min_key, Transaction *transaction);
 
   auto BorrowLeftLeaf(LeafPage *leaf, LeafPage *left, InternalPage *parent, int leaf_index) -> bool;
 
   auto BorrowRightLeaf(LeafPage *leaf, LeafPage *right, InternalPage *parent, int leaf_index) -> bool;
 
-  auto LeafMergeRightToLeft(LeafPage *left, LeafPage *right, InternalPage *parent, int right_index) -> bool;
+  auto LeafMergeRightToLeft(LeafPage *left, LeafPage *right, InternalPage *parent, int right_index,
+                            Transaction *transaction) -> bool;
 
-  void InternalMerge(InternalPage *internal_page, const KeyType &min_key);
+  void InternalMerge(InternalPage *internal_page, const KeyType &min_key, Transaction *transaction);
 
   auto BorrowLeftInternal(InternalPage *internal, InternalPage *left, InternalPage *parent, int internal_index) -> bool;
 
   auto BorrowRightInternal(InternalPage *internal, InternalPage *right, InternalPage *parent, int internal_index)
       -> bool;
 
-  auto InternalMergeRightToLeft(InternalPage *left, InternalPage *right, InternalPage *parent, int right_index) -> bool;
+  auto InternalMergeRightToLeft(InternalPage *left, InternalPage *right, InternalPage *parent, int right_index,
+                                Transaction *transaction) -> bool;
 
   // member variable
   std::string index_name_;
