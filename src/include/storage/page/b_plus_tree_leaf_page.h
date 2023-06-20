@@ -54,9 +54,8 @@ class BPlusTreeLeafPage : public BPlusTreePage {
   auto LowerBound(const KeyType &key, const KeyComparator &comparator) const -> int;
   auto GetKV(int index) const -> const MappingType &&;
   void SetKV(int index, const MappingType &&kv);
-  auto NeedSplit() const -> bool;
-  auto NeedMerge() const -> bool;
 
+  auto IsSafe(WriteType write_type) const -> bool override;
  private:
   page_id_t next_page_id_;
   // Flexible array member for page data.

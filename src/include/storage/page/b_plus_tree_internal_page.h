@@ -46,9 +46,9 @@ class BPlusTreeInternalPage : public BPlusTreePage {
   auto UpperBound(const KeyType &key, const KeyComparator &comparator) const -> int;
   auto GetKV(int index) const -> MappingType;
   void SetKV(int index, const MappingType &&kv);
-  auto NeedSplit() const -> bool;
-  auto NeedMerge() const -> bool;
   void InsertKV(const KeyType &key, const ValueType &value, const KeyComparator &comparator);
+
+  auto IsSafe(WriteType write_type) const -> bool override;
 
  private:
   // Flexible array member for page data.

@@ -54,7 +54,13 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetValueAt(int index, const ValueType &valu
 
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::UpperBound(const KeyType &key, const KeyComparator &comparator) const -> int {
-  int l = -1;
+  //  for (int i = 1; i < GetSize(); ++i) {
+  //    if (comparator(KeyAt(i), key) > 0) {
+  //      return i;
+  //    }
+  //  }
+  //  return GetSize();
+  int l = 0;
   int r = GetSize();
   while (l + 1 < r) {
     auto m = (l + r) / 2;
@@ -74,12 +80,6 @@ INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetKV(int index, const MappingType &&kv) { array_[index] = kv; }
 
 INDEX_TEMPLATE_ARGUMENTS
-auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::NeedSplit() const -> bool { return GetSize() >= GetMaxSize(); }
-
-INDEX_TEMPLATE_ARGUMENTS
-auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::NeedMerge() const -> bool { return GetSize() < GetMinSize(); }
-
-INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertKV(const KeyType &key, const ValueType &value,
                                               const KeyComparator &comparator) {
   auto index = UpperBound(key, comparator);
@@ -89,6 +89,18 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertKV(const KeyType &key, const ValueTyp
   }
   SetKV(index, {key, value});
   IncreaseSize(1);
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::IsSafe(WriteType write_type) const -> bool {
+  if (write_type == WriteType::INSERT) {
+    return GetSize() < GetMaxSize();
+  }
+  if (write_type == WriteType::DELETE) {
+    return GetSize() > GetMinSize();
+  }
+
+  UNREACHABLE("not supported write type");
 }
 
 // valuetype for internalNode should be page id_t

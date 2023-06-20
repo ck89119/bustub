@@ -66,15 +66,8 @@ void BPlusTreePage::WLatch() { reinterpret_cast<Page *>(this)->WLatch(); }
 
 void BPlusTreePage::WUnlatch() { reinterpret_cast<Page *>(this)->WUnlatch(); }
 
-auto BPlusTreePage::IsSafe(WriteType write_type) const -> bool {
-  if (write_type == WriteType::INSERT) {
-    return GetSize() < GetMaxSize() - (IsLeafPage() ? 1 : 0);
-  }
-  if (write_type == WriteType::DELETE) {
-    return GetSize() > GetMinSize();
-  }
+auto BPlusTreePage::NeedSplit() const -> bool { return GetSize() >= GetMaxSize(); }
 
-  UNREACHABLE("not supported write type");
-}
+auto BPlusTreePage::NeedMerge() const -> bool { return GetSize() < GetMinSize(); }
 
 }  // namespace bustub

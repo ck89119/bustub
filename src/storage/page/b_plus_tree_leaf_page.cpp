@@ -76,10 +76,16 @@ INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_LEAF_PAGE_TYPE::GetKV(int index) const -> const MappingType && { return std::move(array_[index]); }
 
 INDEX_TEMPLATE_ARGUMENTS
-auto B_PLUS_TREE_LEAF_PAGE_TYPE::NeedSplit() const -> bool { return GetSize() >= GetMaxSize(); }
+auto B_PLUS_TREE_LEAF_PAGE_TYPE::IsSafe(WriteType write_type) const -> bool {
+  if (write_type == WriteType::INSERT) {
+    return GetSize() < GetMaxSize() - 1;
+  }
+  if (write_type == WriteType::DELETE) {
+    return GetSize() > GetMinSize();
+  }
 
-INDEX_TEMPLATE_ARGUMENTS
-auto B_PLUS_TREE_LEAF_PAGE_TYPE::NeedMerge() const -> bool { return GetSize() < GetMinSize(); }
+  UNREACHABLE("not supported write type");
+}
 
 template class BPlusTreeLeafPage<GenericKey<4>, RID, GenericComparator<4>>;
 template class BPlusTreeLeafPage<GenericKey<8>, RID, GenericComparator<8>>;
