@@ -48,8 +48,6 @@ class BPlusTreeInternalPage : public BPlusTreePage {
   void SetKV(int index, const MappingType &&kv);
   void InsertKV(const KeyType &key, const ValueType &value, const KeyComparator &comparator);
 
-  auto IsSafe(WriteType write_type) const -> bool override;
-
  private:
   // Flexible array member for page data.
   MappingType array_[1];

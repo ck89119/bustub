@@ -91,18 +91,6 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertKV(const KeyType &key, const ValueTyp
   IncreaseSize(1);
 }
 
-INDEX_TEMPLATE_ARGUMENTS
-auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::IsSafe(WriteType write_type) const -> bool {
-  if (write_type == WriteType::INSERT) {
-    return GetSize() < GetMaxSize();
-  }
-  if (write_type == WriteType::DELETE) {
-    return GetSize() > GetMinSize();
-  }
-
-  UNREACHABLE("not supported write type");
-}
-
 // valuetype for internalNode should be page id_t
 template class BPlusTreeInternalPage<GenericKey<4>, page_id_t, GenericComparator<4>>;
 template class BPlusTreeInternalPage<GenericKey<8>, page_id_t, GenericComparator<8>>;

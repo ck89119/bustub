@@ -648,24 +648,26 @@ void BPLUSTREE_TYPE::InternalSplit(InternalPage *internal, const KeyType &key, c
 
   // move data [middle, max_size) to new node
   auto max_size = internal->GetMaxSize();
-  // sizeof(right) == sizeof(left) or sizeof(left) + 1
-  int middle = max_size / 2;
-  //  if (internal->UpperBound(key, comparator_) >= middle) {
-  //    middle += 1;
-  //  }
+  // make sure sizeof(right) == sizeof(left) or sizeof(left) + 1 after insert
+  int middle = (max_size + 1) / 2;
+  InternalPage *page_to_insert = nullptr;
+  if (internal->UpperBound(key, comparator_) >= middle) {
+    page_to_insert = new_internal;
+  } else {
+    middle -= 1;
+    page_to_insert = internal;
+  }
 
   for (int i = middle; i < max_size; ++i) {
     new_internal->SetKV(i - middle, internal->GetKV(i));
     // update child's parent id
     UpdateParentPageId(internal->ValueAt(i), new_internal_page_id);
   }
-
   // set size
-  new_internal->SetSize(max_size - middle);
   internal->SetSize(middle);
+  new_internal->SetSize(max_size - middle);
 
   // insert KV into page
-  InternalPage *page_to_insert = comparator_(key, new_internal->KeyAt(0)) < 0 ? internal : new_internal;
   page_to_insert->InsertKV(key, value, comparator_);
   // update child's parent id
   UpdateParentPageId(value, page_to_insert->GetPageId());
@@ -1044,10 +1046,10 @@ auto BPLUSTREE_TYPE::BorrowRightInternal(InternalPage *internal, InternalPage *r
   // move right sibling's first value (internal_index 0) to internal's tail
   internal->SetValueAt(internal->GetSize(), right->ValueAt(0));
   // update child node's parent_id field
-  UpdateParentPageId(right->ValueAt(0), internal->GetPageId());
+  UpdateParentPageId(internal->ValueAt(internal->GetSize()), internal->GetPageId());
 
   // update parent key
-  parent->SetKeyAt(internal_index, right->KeyAt(1));
+  parent->SetKeyAt(internal_index + 1, right->KeyAt(1));
 
   // move right sibling's data to previous position
   for (int i = 1; i < right->GetSize(); ++i) {

@@ -72,7 +72,7 @@ class BPlusTreePage {
   auto NeedSplit() const -> bool;
   auto NeedMerge() const -> bool;
 
-  virtual auto IsSafe(WriteType write_type) const -> bool = 0;
+  auto IsSafe(WriteType write_type) const -> bool;
 
  private:
   // member variable, attributes that both internal and leaf page share

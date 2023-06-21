@@ -39,7 +39,7 @@ void BPlusTreePage::SetMaxSize(int size) { max_size_ = size; }
  * Helper method to get min page size
  * Generally, min page size == max page size / 2
  */
-auto BPlusTreePage::GetMinSize() const -> int { return max_size_ / 2; }
+auto BPlusTreePage::GetMinSize() const -> int { return (max_size_ + (IsLeafPage() ? 0 : 1)) / 2; }
 
 /*
  * Helper methods to get/set parent page id
@@ -69,5 +69,16 @@ void BPlusTreePage::WUnlatch() { reinterpret_cast<Page *>(this)->WUnlatch(); }
 auto BPlusTreePage::NeedSplit() const -> bool { return GetSize() >= GetMaxSize(); }
 
 auto BPlusTreePage::NeedMerge() const -> bool { return GetSize() < GetMinSize(); }
+
+auto BPlusTreePage::IsSafe(WriteType write_type) const -> bool {
+  if (write_type == WriteType::INSERT) {
+    return GetSize() < GetMaxSize() - (IsLeafPage() ? 1 : 0);
+  }
+  if (write_type == WriteType::DELETE) {
+    return GetSize() > GetMinSize();
+  }
+
+  UNREACHABLE("not supported write type");
+}
 
 }  // namespace bustub

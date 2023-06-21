@@ -55,7 +55,6 @@ class BPlusTreeLeafPage : public BPlusTreePage {
   auto GetKV(int index) const -> const MappingType &&;
   void SetKV(int index, const MappingType &&kv);
 
-  auto IsSafe(WriteType write_type) const -> bool override;
  private:
   page_id_t next_page_id_;
   // Flexible array member for page data.
