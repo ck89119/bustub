@@ -76,22 +76,41 @@ INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_LEAF_PAGE_TYPE::GetKV(int index) const -> const MappingType && { return std::move(array_[index]); }
 
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveHalfTo(B_PLUS_TREE_LEAF_PAGE_TYPE *another_leaf) {
+auto B_PLUS_TREE_LEAF_PAGE_TYPE::InsertKV(const KeyType &key, const ValueType &value, const KeyComparator &comparator)
+    -> bool {
+  auto index = LowerBound(key, comparator);
+  // key exists
+  if (index < GetSize() && comparator(key, KeyAt(index)) == 0) {
+    return false;
+  }
+
+  // move to next location
+  // for (int i = GetSize(); i > index; --i) {
+  //   SetKV(i, GetKV(i - 1));
+  // }
+  std::copy_backward(array_ + index, array_ + GetSize(), array_ + GetSize() + 1);
+  SetKV(index, {key, value});
+  IncreaseSize(1);
+  return true;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveHalfTo(B_PLUS_TREE_LEAF_PAGE_TYPE *right) {
   // move data [middle, max_size) to another leaf
   auto max_size = GetMaxSize();
   int middle = max_size / 2;
-  //  for (int i = middle; i < max_size; ++i) {
-  //    another_leaf->SetKV(i - middle, GetKV(i));
-  //  }
-  std::copy(&array_[middle], &array_[GetSize()], another_leaf->array_);
+  // for (int i = middle; i < max_size; ++i) {
+  //   right->SetKV(i - middle, GetKV(i));
+  // }
+  std::copy(&array_[middle], &array_[GetSize()], right->array_);
 
   // set size
-  another_leaf->SetSize(max_size - middle);
+  right->SetSize(max_size - middle);
   SetSize(middle);
 
   // set next page id
-  another_leaf->SetNextPageId(GetNextPageId());
-  SetNextPageId(another_leaf->GetPageId());
+  right->SetNextPageId(GetNextPageId());
+  SetNextPageId(right->GetPageId());
 }
 
 template class BPlusTreeLeafPage<GenericKey<4>, RID, GenericComparator<4>>;

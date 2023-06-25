@@ -80,7 +80,7 @@ auto ExtendibleHashTable<K, V>::Remove(const K &key) -> bool {
   std::scoped_lock<std::mutex> lock(latch_);
   auto index = IndexOf(key);
   auto status = dir_[index]->Remove(key);
-  CheckIntegrity();
+  // CheckIntegrity();
   return status;
 }
 

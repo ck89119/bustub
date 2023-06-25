@@ -18,7 +18,7 @@ INDEXITERATOR_TYPE::IndexIterator() = default;
 INDEX_TEMPLATE_ARGUMENTS
 INDEXITERATOR_TYPE::IndexIterator(BufferPoolManager *buffer_pool_manager, page_id_t page_id, int index)
     : buffer_pool_manager_(buffer_pool_manager), index_(index) {
-  leaf_ = reinterpret_cast<LeafPage *>(buffer_pool_manager_->FetchPage(page_id));
+  leaf_ = reinterpret_cast<LeafPage *>(buffer_pool_manager_->FetchPage(page_id)->GetData());
 }
 
 INDEX_TEMPLATE_ARGUMENTS
@@ -39,7 +39,7 @@ auto INDEXITERATOR_TYPE::operator++() -> INDEXITERATOR_TYPE & {
     buffer_pool_manager_->UnpinPage(leaf_->GetPageId(), false);
 
     index_ = 0;
-    leaf_ = reinterpret_cast<LeafPage *>(buffer_pool_manager_->FetchPage(next_page_id));
+    leaf_ = reinterpret_cast<LeafPage *>(buffer_pool_manager_->FetchPage(next_page_id)->GetData());
   }
   return *this;
 }

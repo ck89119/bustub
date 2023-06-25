@@ -49,6 +49,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetKeyAt(int index, const KeyType &key) { a
  */
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueAt(int index) const -> ValueType { return array_[index].second; }
+
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetValueAt(int index, const ValueType &value) { array_[index].second = value; }
 
@@ -84,45 +85,47 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertKV(const KeyType &key, const ValueTyp
                                               const KeyComparator &comparator) {
   auto index = UpperBound(key, comparator);
   // move to next location
-  for (int i = GetSize(); i > index; --i) {
-    SetKV(i, GetKV(i - 1));
-  }
+  //  for (int i = GetSize(); i > index; --i) {
+  //    SetKV(i, GetKV(i - 1));
+  //  }
+  std::copy_backward(array_ + index, array_ + GetSize(), array_ + GetSize() + 1);
   SetKV(index, {key, value});
   IncreaseSize(1);
 }
 
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfAndInsert(B_PLUS_TREE_INTERNAL_PAGE_TYPE *another_internal,
-                                                       const KeyType &key, const ValueType &value,
-                                                       const KeyComparator &comparator) {
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfAndInsert(B_PLUS_TREE_INTERNAL_PAGE_TYPE *right, const KeyType &key,
+                                                       const ValueType &value, const KeyComparator &comparator) {
+  // can not insert first then split, it may be overflow
   // move data [middle, max_size) to new node
   auto max_size = GetMaxSize();
-  // make sure sizeof(right) == sizeof(left) or sizeof(left) + 1 after insert
+  // make sure sizeof(right_part) == sizeof(left_part) or sizeof(left_part) + 1 after insert
   int middle = (max_size + 1) / 2;
-  B_PLUS_TREE_INTERNAL_PAGE_TYPE *page_to_insert = nullptr;
+  B_PLUS_TREE_INTERNAL_PAGE_TYPE *page_to_insert;
   if (UpperBound(key, comparator) >= middle) {
-    page_to_insert = another_internal;
+    page_to_insert = right;
   } else {
     middle -= 1;
     page_to_insert = this;
   }
 
-  //    for (int i = middle; i < max_size; ++i) {
-  //      another_internal->SetKV(i - middle, GetKV(i));
-  //    }
-  std::copy(&array_[middle], &array_[GetSize()], another_internal->array_);
+  //  for (int i = middle; i < max_size; ++i) {
+  //    right->SetKV(i - middle, GetKV(i));
+  //  }
+  std::copy(&array_[middle], &array_[GetSize()], right->array_);
 
   // set size
   SetSize(middle);
-  another_internal->SetSize(max_size - middle);
+  right->SetSize(max_size - middle);
 
   // insert KV into page
-  if (page_to_insert->GetPageId() == another_internal->GetPageId() && comparator(key, another_internal->KeyAt(0)) < 0) {
-    for (int i = another_internal->GetSize(); i > 0; --i) {
-      another_internal->SetKV(i, another_internal->GetKV(i - 1));
+  if (page_to_insert->GetPageId() == right->GetPageId() && comparator(key, right->KeyAt(0)) < 0) {
+    // insert at right page's beginning
+    for (int i = right->GetSize(); i > 0; --i) {
+      right->SetKV(i, right->GetKV(i - 1));
     }
-    another_internal->SetKV(0, {key, value});
-    another_internal->IncreaseSize(1);
+    right->SetKV(0, {key, value});
+    right->IncreaseSize(1);
   } else {
     page_to_insert->InsertKV(key, value, comparator);
   }

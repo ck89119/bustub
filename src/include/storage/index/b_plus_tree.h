@@ -85,17 +85,11 @@ class BPlusTree {
 
   auto FindLeafPageForWrite(const KeyType &key, WriteType write_type, Transaction *txn) -> LeafPage *;
 
-  auto GetParent(BPlusTreePage *tree_page) -> InternalPage *;
-
   void UpdateParentPageId(const page_id_t &child_page_id, const page_id_t &parent_page_id);
 
   auto LeafInsert(const KeyType &key, const ValueType &value, Transaction *txn) -> bool;
 
-  void LeafSplit(Transaction *txn);
-
-  void InternalInsert(InternalPage *internal_page, const KeyType &key, const page_id_t &value, Transaction *txn);
-
-  void InternalSplit(InternalPage *internal_page, const KeyType &key, const page_id_t &value, Transaction *txn);
+  void InternalInsert(BPlusTreePage *left, const KeyType &key, const page_id_t &value);
 
   auto LeafRemove(const KeyType &key, Transaction *txn) -> bool;
 
@@ -121,7 +115,7 @@ class BPlusTree {
 
   void ReleaseAllLatches(Transaction *txn, bool is_dirty);
 
-  //  void RefreshChildParentId(InternalPage *internal);
+  void RefreshChildParentId(InternalPage *internal);
 
   // member variable
   std::string index_name_;
