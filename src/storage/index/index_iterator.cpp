@@ -17,43 +17,30 @@ INDEXITERATOR_TYPE::IndexIterator() = default;
 
 INDEX_TEMPLATE_ARGUMENTS
 INDEXITERATOR_TYPE::IndexIterator(BufferPoolManager *buffer_pool_manager, page_id_t page_id, int index)
-    : buffer_pool_manager_(buffer_pool_manager), page_id_(page_id), index_(index) {}
+    : buffer_pool_manager_(buffer_pool_manager), index_(index) {
+  leaf_ = reinterpret_cast<LeafPage *>(buffer_pool_manager_->FetchPage(page_id));
+}
 
 INDEX_TEMPLATE_ARGUMENTS
-INDEXITERATOR_TYPE::~IndexIterator() = default;  // NOLINT
+INDEXITERATOR_TYPE::~IndexIterator() { buffer_pool_manager_->UnpinPage(leaf_->GetPageId(), false); }
 
 INDEX_TEMPLATE_ARGUMENTS
 auto INDEXITERATOR_TYPE::IsEnd() -> bool {
-  auto leaf = reinterpret_cast<LeafPage *>(buffer_pool_manager_->FetchPage(page_id_));
-  leaf->RLatch();
-  auto ans = index_ == leaf->GetSize() && leaf->GetNextPageId() == INVALID_PAGE_ID;
-  leaf->RUnlatch();
-  buffer_pool_manager_->UnpinPage(leaf->GetPageId(), false);
-  return ans;
+  return index_ >= leaf_->GetSize() && leaf_->GetNextPageId() == INVALID_PAGE_ID;
 }
 
 INDEX_TEMPLATE_ARGUMENTS
-auto INDEXITERATOR_TYPE::operator*() -> const MappingType & {
-  auto leaf = reinterpret_cast<LeafPage *>(buffer_pool_manager_->FetchPage(page_id_));
-  leaf->RLatch();
-  auto &&ans = leaf->GetKV(index_);
-  leaf->RUnlatch();
-  buffer_pool_manager_->UnpinPage(leaf->GetPageId(), false);
-  return ans;
-}
+auto INDEXITERATOR_TYPE::operator*() -> const MappingType & { return leaf_->GetKV(index_); }
 
 INDEX_TEMPLATE_ARGUMENTS
 auto INDEXITERATOR_TYPE::operator++() -> INDEXITERATOR_TYPE & {
-  auto leaf = reinterpret_cast<LeafPage *>(buffer_pool_manager_->FetchPage(page_id_));
-  leaf->RLatch();
-  //  std::cout << "page_id_ = " << page_id_ << ", index = " << index_ << ", leaf->GetSize() = " << leaf->GetSize() <<
-  //  std::endl;
-  if (++index_ == leaf->GetSize() && leaf->GetNextPageId() != INVALID_PAGE_ID) {
-    page_id_ = leaf->GetNextPageId();
+  if (++index_ >= leaf_->GetSize() && leaf_->GetNextPageId() != INVALID_PAGE_ID) {
+    auto next_page_id = leaf_->GetNextPageId();
+    buffer_pool_manager_->UnpinPage(leaf_->GetPageId(), false);
+
     index_ = 0;
+    leaf_ = reinterpret_cast<LeafPage *>(buffer_pool_manager_->FetchPage(next_page_id));
   }
-  leaf->RUnlatch();
-  buffer_pool_manager_->UnpinPage(leaf->GetPageId(), false);
   return *this;
 }
 

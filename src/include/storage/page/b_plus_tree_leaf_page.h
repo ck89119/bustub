@@ -54,6 +54,7 @@ class BPlusTreeLeafPage : public BPlusTreePage {
   auto LowerBound(const KeyType &key, const KeyComparator &comparator) const -> int;
   auto GetKV(int index) const -> const MappingType &&;
   void SetKV(int index, const MappingType &&kv);
+  void MoveHalfTo(B_PLUS_TREE_LEAF_PAGE_TYPE *another_leaf);
 
  private:
   page_id_t next_page_id_;

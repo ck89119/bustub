@@ -81,7 +81,7 @@ class BPlusTree {
 
   void ToString(BPlusTreePage *page, BufferPoolManager *bpm) const;
 
-  auto FindLeafPageForRead(const KeyType &key, bool write_latch_leaf = false) -> LeafPage *;
+  auto FindLeafPageForRead(const KeyType &key, bool write_latch_leaf = false, Transaction *txn = nullptr) -> LeafPage *;
 
   auto FindLeafPageForWrite(const KeyType &key, WriteType write_type, Transaction *txn) -> LeafPage *;
 
@@ -118,6 +118,10 @@ class BPlusTree {
 
   auto InternalMergeRightToLeft(InternalPage *left, InternalPage *right, InternalPage *parent, int right_index,
                                 Transaction *txn) -> bool;
+
+  void ReleaseAllLatches(Transaction *txn, bool is_dirty);
+
+  //  void RefreshChildParentId(InternalPage *internal);
 
   // member variable
   std::string index_name_;

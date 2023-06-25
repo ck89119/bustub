@@ -91,6 +91,43 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertKV(const KeyType &key, const ValueTyp
   IncreaseSize(1);
 }
 
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfAndInsert(B_PLUS_TREE_INTERNAL_PAGE_TYPE *another_internal,
+                                                       const KeyType &key, const ValueType &value,
+                                                       const KeyComparator &comparator) {
+  // move data [middle, max_size) to new node
+  auto max_size = GetMaxSize();
+  // make sure sizeof(right) == sizeof(left) or sizeof(left) + 1 after insert
+  int middle = (max_size + 1) / 2;
+  B_PLUS_TREE_INTERNAL_PAGE_TYPE *page_to_insert = nullptr;
+  if (UpperBound(key, comparator) >= middle) {
+    page_to_insert = another_internal;
+  } else {
+    middle -= 1;
+    page_to_insert = this;
+  }
+
+  //    for (int i = middle; i < max_size; ++i) {
+  //      another_internal->SetKV(i - middle, GetKV(i));
+  //    }
+  std::copy(&array_[middle], &array_[GetSize()], another_internal->array_);
+
+  // set size
+  SetSize(middle);
+  another_internal->SetSize(max_size - middle);
+
+  // insert KV into page
+  if (page_to_insert->GetPageId() == another_internal->GetPageId() && comparator(key, another_internal->KeyAt(0)) < 0) {
+    for (int i = another_internal->GetSize(); i > 0; --i) {
+      another_internal->SetKV(i, another_internal->GetKV(i - 1));
+    }
+    another_internal->SetKV(0, {key, value});
+    another_internal->IncreaseSize(1);
+  } else {
+    page_to_insert->InsertKV(key, value, comparator);
+  }
+}
+
 // valuetype for internalNode should be page id_t
 template class BPlusTreeInternalPage<GenericKey<4>, page_id_t, GenericComparator<4>>;
 template class BPlusTreeInternalPage<GenericKey<8>, page_id_t, GenericComparator<8>>;

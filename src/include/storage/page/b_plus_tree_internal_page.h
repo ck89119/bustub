@@ -47,6 +47,8 @@ class BPlusTreeInternalPage : public BPlusTreePage {
   auto GetKV(int index) const -> MappingType;
   void SetKV(int index, const MappingType &&kv);
   void InsertKV(const KeyType &key, const ValueType &value, const KeyComparator &comparator);
+  void MoveHalfAndInsert(B_PLUS_TREE_INTERNAL_PAGE_TYPE *another_internal, const KeyType &key, const ValueType &value,
+                         const KeyComparator &comparator);
 
  private:
   // Flexible array member for page data.

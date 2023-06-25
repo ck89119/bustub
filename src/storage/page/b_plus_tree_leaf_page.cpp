@@ -75,6 +75,25 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::SetKV(int index, const MappingType &&kv) { arra
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_LEAF_PAGE_TYPE::GetKV(int index) const -> const MappingType && { return std::move(array_[index]); }
 
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveHalfTo(B_PLUS_TREE_LEAF_PAGE_TYPE *another_leaf) {
+  // move data [middle, max_size) to another leaf
+  auto max_size = GetMaxSize();
+  int middle = max_size / 2;
+  //  for (int i = middle; i < max_size; ++i) {
+  //    another_leaf->SetKV(i - middle, GetKV(i));
+  //  }
+  std::copy(&array_[middle], &array_[GetSize()], another_leaf->array_);
+
+  // set size
+  another_leaf->SetSize(max_size - middle);
+  SetSize(middle);
+
+  // set next page id
+  another_leaf->SetNextPageId(GetNextPageId());
+  SetNextPageId(another_leaf->GetPageId());
+}
+
 template class BPlusTreeLeafPage<GenericKey<4>, RID, GenericComparator<4>>;
 template class BPlusTreeLeafPage<GenericKey<8>, RID, GenericComparator<8>>;
 template class BPlusTreeLeafPage<GenericKey<16>, RID, GenericComparator<16>>;

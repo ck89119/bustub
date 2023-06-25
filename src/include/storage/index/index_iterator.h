@@ -35,19 +35,19 @@ class IndexIterator {
 
   auto operator++() -> IndexIterator &;
 
-  auto operator==(const IndexIterator &itr) const -> bool { return page_id_ == itr.page_id_ && index_ == itr.index_; }
-
-  auto operator!=(const IndexIterator &itr) const -> bool {
-    return !(page_id_ == itr.page_id_ && index_ == itr.index_);
+  auto operator==(const IndexIterator &itr) const -> bool {
+    return leaf_->GetPageId() == itr.leaf_->GetPageId() && index_ == itr.index_;
   }
+
+  auto operator!=(const IndexIterator &itr) const -> bool { return !operator==(itr); }
 
  private:
   // bpm
   BufferPoolManager *buffer_pool_manager_;
-  // leaf page id
-  page_id_t page_id_;
   // index of array_
   int index_;
+  // leaf_ page pointer
+  LeafPage *leaf_;
 };
 
 }  // namespace bustub
