@@ -135,6 +135,10 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
  */
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::Begin() -> INDEXITERATOR_TYPE {
+  if (IsEmpty()) {
+    return INDEXITERATOR_TYPE(buffer_pool_manager_, INVALID_PAGE_ID, 0);
+  }
+
   tree_latch_.RLock();
   auto *node = reinterpret_cast<BPlusTreePage *>(buffer_pool_manager_->FetchPage(root_page_id_)->GetData());
   node->RLatch();
@@ -166,6 +170,10 @@ auto BPLUSTREE_TYPE::Begin() -> INDEXITERATOR_TYPE {
  */
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::Begin(const KeyType &key) -> INDEXITERATOR_TYPE {
+  if (IsEmpty()) {
+    return INDEXITERATOR_TYPE(buffer_pool_manager_, INVALID_PAGE_ID, 0);
+  }
+
   auto *leaf = FindLeafPageForRead(key);
   auto ans = INDEXITERATOR_TYPE(buffer_pool_manager_, leaf->GetPageId(), leaf->LowerBound(key, comparator_));
 
@@ -181,6 +189,10 @@ auto BPLUSTREE_TYPE::Begin(const KeyType &key) -> INDEXITERATOR_TYPE {
  */
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::End() -> INDEXITERATOR_TYPE {
+  if (IsEmpty()) {
+    return INDEXITERATOR_TYPE(buffer_pool_manager_, INVALID_PAGE_ID, 0);
+  }
+
   tree_latch_.RLock();
   auto *node = reinterpret_cast<BPlusTreePage *>(buffer_pool_manager_->FetchPage(root_page_id_)->GetData());
   node->RLatch();
