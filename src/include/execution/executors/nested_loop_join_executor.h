@@ -14,6 +14,7 @@
 
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "execution/executor_context.h"
 #include "execution/executors/abstract_executor.h"
@@ -69,7 +70,6 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
   RID left_rid_;
 
   bool has_matched_ = false;
-
 };
 
 }  // namespace bustub

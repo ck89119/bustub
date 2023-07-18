@@ -20,9 +20,7 @@ InsertExecutor::InsertExecutor(ExecutorContext *exec_ctx, const InsertPlanNode *
                                std::unique_ptr<AbstractExecutor> &&child_executor)
     : AbstractExecutor(exec_ctx), plan_(plan), child_executor_(std::move(child_executor)), executed_(false) {}
 
-void InsertExecutor::Init() {
-  child_executor_->Init();
-}
+void InsertExecutor::Init() { child_executor_->Init(); }
 
 auto InsertExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
   if (executed_) {
@@ -42,7 +40,7 @@ auto InsertExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
     }
 
     ++inserted_cnt;
-    for (auto index_info: indexes) {
+    for (auto index_info : indexes) {
       auto index = index_info->index_.get();
       const Tuple index_key = child_tuple.KeyFromTuple(table->schema_, *index->GetKeySchema(), index->GetKeyAttrs());
       index->InsertEntry(index_key, *rid, txn);

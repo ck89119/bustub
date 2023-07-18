@@ -20,9 +20,7 @@ DeleteExecutor::DeleteExecutor(ExecutorContext *exec_ctx, const DeletePlanNode *
                                std::unique_ptr<AbstractExecutor> &&child_executor)
     : AbstractExecutor(exec_ctx), plan_(plan), child_executor_(std::move(child_executor)), executed_(false) {}
 
-void DeleteExecutor::Init() {
-  child_executor_->Init();
-}
+void DeleteExecutor::Init() { child_executor_->Init(); }
 
 auto DeleteExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
   if (executed_) {
@@ -42,7 +40,7 @@ auto DeleteExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
     }
 
     deleted_cnt++;
-    for (auto index_info: indexes) {
+    for (auto index_info : indexes) {
       auto index = index_info->index_.get();
       const Tuple index_key = child_tuple.KeyFromTuple(table->schema_, *index->GetKeySchema(), index->GetKeyAttrs());
       index->DeleteEntry(index_key, *rid, txn);
