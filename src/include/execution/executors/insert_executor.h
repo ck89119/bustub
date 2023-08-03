@@ -55,6 +55,8 @@ class InsertExecutor : public AbstractExecutor {
   auto GetOutputSchema() const -> const Schema & override { return plan_->OutputSchema(); };
 
  private:
+  auto NeedLock() -> bool;
+
   /** The insert plan node to be executed*/
   const InsertPlanNode *plan_;
 

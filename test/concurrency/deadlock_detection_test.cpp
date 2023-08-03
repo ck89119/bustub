@@ -21,7 +21,7 @@
       << "Test Failed Due to Time Out";
 
 namespace bustub {
-TEST(LockManagerDeadlockDetectionTest, DISABLED_EdgeTest) {
+TEST(LockManagerDeadlockDetectionTest, EdgeTest) {
   LockManager lock_mgr{};
 
   const int num_nodes = 100;
@@ -63,7 +63,7 @@ TEST(LockManagerDeadlockDetectionTest, DISABLED_EdgeTest) {
   }
 }
 
-TEST(LockManagerDeadlockDetectionTest, DISABLED_BasicDeadlockDetectionTest) {
+TEST(LockManagerDeadlockDetectionTest, BasicDeadlockDetectionTest) {
   LockManager lock_mgr{};
   TransactionManager txn_mgr{&lock_mgr};
 
@@ -81,7 +81,7 @@ TEST(LockManagerDeadlockDetectionTest, DISABLED_BasicDeadlockDetectionTest) {
     EXPECT_EQ(true, res);
     res = lock_mgr.LockRow(txn0, LockManager::LockMode::EXCLUSIVE, toid, rid0);
     EXPECT_EQ(true, res);
-    EXPECT_EQ(TransactionState::GROWING, txn1->GetState());
+    EXPECT_EQ(TransactionState::GROWING, txn0->GetState());
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     // This will block
@@ -103,6 +103,7 @@ TEST(LockManagerDeadlockDetectionTest, DISABLED_BasicDeadlockDetectionTest) {
     EXPECT_EQ(res, true);
 
     res = lock_mgr.LockRow(txn1, LockManager::LockMode::EXCLUSIVE, toid, rid1);
+    EXPECT_EQ(res, true);
     EXPECT_EQ(TransactionState::GROWING, txn1->GetState());
 
     // This will block
@@ -121,5 +122,39 @@ TEST(LockManagerDeadlockDetectionTest, DISABLED_BasicDeadlockDetectionTest) {
 
   delete txn0;
   delete txn1;
+}
+
+TEST(LockManagerDeadlockDetectionTest, HasCycleTest) {
+  LockManager lock_mgr{};
+  lock_mgr.SetCycleDetection(false);
+
+  lock_mgr.AddEdge(10, 0);
+  lock_mgr.AddEdge(0, 1);
+  lock_mgr.AddEdge(1, 2);
+  lock_mgr.AddEdge(2, 0);
+
+  lock_mgr.AddEdge(9, 8);
+  lock_mgr.AddEdge(8, 7);
+  lock_mgr.AddEdge(7, 9);
+
+  txn_id_t txn_id = INVALID_TXN_ID;
+  // start from node 0, find circle 0 -> 1 -> 2 -> 0, return youngest txn 2
+  auto status = lock_mgr.HasCycle(&txn_id);
+  EXPECT_EQ(true, status);
+  EXPECT_EQ(2, txn_id);
+
+  lock_mgr.RemoveEdge(1, 2);
+  lock_mgr.RemoveEdge(2, 0);
+  // start from node 1, visited 1, 2, find no circle
+  // then start from 7, and find circle 7 -> 9 -> 8 -> 7, return youngest txn 9
+  status = lock_mgr.HasCycle(&txn_id);
+  EXPECT_EQ(true, status);
+  EXPECT_EQ(9, txn_id);
+
+  lock_mgr.RemoveEdge(7, 9);
+  lock_mgr.RemoveEdge(9, 8);
+  // no circle
+  status = lock_mgr.HasCycle(&txn_id);
+  EXPECT_EQ(false, status);
 }
 }  // namespace bustub
