@@ -491,7 +491,7 @@ void LockManager::BuildWaitsForGraph() {
     }
   }
 
-  for (auto &[_, v]: waits_for_) {
+  for (auto &[_, v] : waits_for_) {
     std::sort(v.begin(), v.end());
   }
 }
