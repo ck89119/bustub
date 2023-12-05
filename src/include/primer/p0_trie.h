@@ -50,7 +50,7 @@ class TrieNode {
   TrieNode(TrieNode &&other_trie_node) noexcept {
     key_char_ = other_trie_node.key_char_;
     is_end_ = other_trie_node.is_end_;
-    children_ = move(other_trie_node.children_);
+    children_ = std::move(other_trie_node.children_);
     // other_trie_node.key_char_ = ' ';
     // other_trie_node.is_end_ = false;
     // other_trie_node.children_ = std::unordered_map<char, std::unique_ptr<TrieNode>>();
