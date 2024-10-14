@@ -111,7 +111,7 @@ class Trie {
 
  public:
   // Create an empty trie.
-  Trie() = default;
+  Trie() : root_(std::make_shared<TrieNode>()) {}
 
   // Get the value associated with the given key.
   // 1. If the key is not in the trie, return nullptr.
@@ -130,7 +130,12 @@ class Trie {
   auto Remove(std::string_view key) const -> Trie;
 
   // Get the root of the trie, should only be used in test cases.
-  auto GetRoot() const -> std::shared_ptr<const TrieNode> { return root_; }
+  auto GetRoot() const -> std::shared_ptr<const TrieNode> {
+    if (root_ == nullptr || root_->children_.size() == 0) {
+      return nullptr;
+    }
+    return root_;
+  }
 };
 
 }  // namespace bustub
